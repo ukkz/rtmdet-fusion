@@ -32,7 +32,7 @@ uv run python tools/train.py --amp --resume best --mask-weight 4.0 --epochs 50
 
 - `--epochs`は通しの総エポック数です。`--resume`はチェックポイントのエポックの次から`--epochs`まで続け、
   学習率スケジュールも再開位置まで進めます（上の例の40 / 50は一例です）
-- stage 2ではoptimizerとEMAの状態を引き継がず（EMAは学習前の重みから始まります）、最良val lossもリセットされます
+- stage 2ではoptimizerの状態を引き継がず、EMAは既存モジュールの分をチェックポイントから引き継ぎます（追加したブランチは初期の重みから始まります）。最良val lossもリセットされます
   （マスク・深度の損失が加わり、stage 1の値と比べられないため）
 - stage 2の最初のエポックで同じ`--work-dir`の`best_model_{variant}.pth`が上書きされます。stage 1の結果を残したい場合は、
   事前に別名でコピーしておいてください

@@ -2221,8 +2221,8 @@ def resume_variant_context(ctx: VariantContext, ckpt: dict, resume_path: Path) -
     '{name}_state_dict' slots. Present modules are loaded strictly.
 
     Starting stage 2 from a stage-1 checkpoint (no mask/depth branch) creates the branch fresh:
-    the optimizer state starts fresh and best_val_loss is reset because the loss composition
-    changes.
+    its EMA starts from its initial weights, the optimizer state starts fresh, and best_val_loss
+    is reset because the loss composition changes.
     """
     model = ctx.model
     names = trainable_module_names(model)
@@ -2244,14 +2244,15 @@ def resume_variant_context(ctx: VariantContext, ckpt: dict, resume_path: Path) -
         sd = raw_sds[n] if raw_sds is not None else ckpt[f'{n}_state_dict']
         getattr(model, n).load_state_dict(sd)
 
-    # The EMA is restored only when the checkpoint holds EMA weights for every module; otherwise
-    # (--no-ema checkpoint or a newly created module) it keeps the weights it was created with.
+    # The EMA continues from the checkpoint's EMA weights when it has them; otherwise
+    # (--no-ema checkpoint or a newly created module) it starts from the current weights.
     if ctx.ema is not None:
-        if raw_sds is not None and not new_modules:
-            ctx.ema.load_state_dicts([ckpt[f'{n}_state_dict'] for n in names])
-            print(f"  [{ctx.name}] Resumed EMA state")
-        else:
-            print(f"  [{ctx.name}] Warning: EMA state not restored (no EMA weights for every module)")
+        ctx.ema.load_state_dicts([
+            ckpt[f'{n}_state_dict'] if raw_sds is not None and n not in new_modules
+            else getattr(model, n).state_dict()
+            for n in names
+        ])
+        print(f"  [{ctx.name}] Resumed EMA state")
 
     if new_modules:
         ctx.best_val_loss = float('inf')
