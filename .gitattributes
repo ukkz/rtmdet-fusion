@@ -1,0 +1,19 @@
+# Line endings are LF in the repository and in working trees (the project is developed on
+# both macOS and Windows)
+* text=auto eol=lf
+
+# Windows batch files need CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pth binary
+*.pt binary
+*.onnx binary
+*.tflite binary
+*.mlpackage binary

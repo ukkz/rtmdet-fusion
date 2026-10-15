@@ -1,0 +1,15 @@
+diff --git a/dist/transpose_webgpu.js b/dist/transpose_webgpu.js
+index f06586bd7e1dfa64914355a9fcdbc3de0bd39251..a08adc8f405f4c1238f8471445717477dbcf23f0 100755
+--- a/dist/transpose_webgpu.js
++++ b/dist/transpose_webgpu.js
+@@ -41,8 +41,8 @@ export class TransposeProgram {
+           let flatIndex = index * ${this.workPerThread} + i;
+           if(flatIndex < uniforms.size) {
+             let coords = getCoordsFromIndex(flatIndex);
+-            setOutputAtIndex(flatIndex, A[getIndexFromCoords${this.outputShape.length}D(
+-              ${dtype}(${switched}), uniforms.aShape)]);
++            setOutputAtIndex(flatIndex, f32(A[getIndexFromCoords${this.outputShape.length}D(
++              ${dtype}(${switched}), uniforms.aShape)]));
+           }
+         }
+       }

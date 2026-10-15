@@ -1,0 +1,42 @@
+{
+  "name": "rtmdet-fusion-web-bench",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@nuxt/eslint": "1.12.1",
+    "@nuxt/ui": "4.3.0",
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-backend-wasm": "^4.22.0",
+    "@tensorflow/tfjs-backend-webgl": "^4.22.0",
+    "@tensorflow/tfjs-backend-webgpu": "^4.22.0",
+    "eslint": "^9.0.0",
+    "onnxruntime-web": "^1.21.0",
+    "long": "^5.3.2",
+    "nuxt": "^4.2.2",
+    "typescript": "^5.6.3",
+    "vue": "^3.5.26",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@esbuild/darwin-arm64": "^0.27.2",
+    "@oxc-minify/binding-darwin-arm64": "^0.108.0",
+    "@oxc-parser/binding-darwin-arm64": "^0.108.0",
+    "@oxc-resolver/binding-darwin-arm64": "^11.16.3",
+    "@oxc-transform/binding-darwin-arm64": "^0.108.0",
+    "@rollup/rollup-darwin-arm64": "^4.55.1",
+    "@tailwindcss/oxide-darwin-arm64": "^4.1.18",
+    "lightningcss-darwin-arm64": "^1.30.2"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "@tensorflow/tfjs-backend-webgpu@4.22.0": "patches/@tensorflow__tfjs-backend-webgpu@4.22.0.patch"
+    }
+  }
+}

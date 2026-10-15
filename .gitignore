@@ -1,0 +1,108 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+.venv-*/
+venv/
+ENV/
+env/
+
+# uv
+.python-version
+
+# Local agent instructions (AGENTS.md is the shared guide)
+CLAUDE.md
+CLAUDE.local.md
+
+# Models and weights (never committed)
+*.pth
+*.pt
+*.onnx
+*.ckpt
+*.safetensors
+*.mlpackage/
+*.tflite
+weights/*
+!weights/.gitkeep
+onnx_models/
+
+# Training outputs
+work_dirs/*
+!work_dirs/.gitkeep
+
+# Datasets (prepared locally, see docs/data-preparation.md)
+/data/*
+!/data/.gitkeep
+/datasets/
+*.json
+!configs/*.json
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+# Session file written to the working directory by onnxruntime 1.30
+:memory:.ses
+
+# Coverage
+.coverage
+htmlcov/
+
+# Converters (tools/tf-converter, tools/tfjs-converter)
+# models/ is a tracked relative symlink to onnx_models/
+tools/tf-converter/output/
+tools/tf-converter/calibration_image_sample_data_*.npy
+
+# Browser demo (examples/web-bench)
+node_modules/
+examples/web-bench/.nuxt/
+examples/web-bench/.output/
+examples/web-bench/.nitro/
+examples/web-bench/.cache/
+examples/web-bench/.data/
+examples/web-bench/dist/
+examples/web-bench/public/tfjs_model/
+examples/web-bench/public/test.jpg
+
+# Exceptions to the global *.json rule (app / tool configuration)
+!examples/web-bench/*.json
+!examples/web-bench/app/**/*.json
+!examples/web-bench/patches/**/*.json

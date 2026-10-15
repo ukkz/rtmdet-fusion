@@ -1,0 +1,2 @@
+patchedDependencies:
+  '@tensorflow/tfjs-backend-webgpu@4.22.0': patches/@tensorflow__tfjs-backend-webgpu@4.22.0.patch

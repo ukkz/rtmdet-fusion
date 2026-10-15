@@ -1,0 +1,35 @@
+RTMDet-Fusion
+Copyright 2025-2026 ukkz
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This product builds on, and contains code derived from or modeled after, the following works.
+Their licenses and copyright notices apply to the corresponding parts.
+
+- MMDetection / RTMDet (https://github.com/open-mmlab/mmdetection)
+  Copyright (c) OpenMMLab. Licensed under the Apache License, Version 2.0.
+  The frozen RTMDet-Ins detector is loaded from MMDetection. The ONNX / CoreML exporters
+  re-implement its prior generation, bbox decoding and dynamic-convolution mask head for export.
+
+- MMPose / RTMPose, RTMO, RTMW (https://github.com/open-mmlab/mmpose)
+  Copyright (c) OpenMMLab. Licensed under the Apache License, Version 2.0.
+  The SimCC coordinate classification, the dynamic coordinate classifier (DCC) head design and
+  the KL-divergence keypoint loss follow these works.
+
+- RT-DETR (https://github.com/lyuwenyu/RT-DETR)
+  Licensed under the Apache License, Version 2.0.
+  The hybrid encoder (RepVGG / CSPRep layers with FPN + PAN) follows its design.
+
+- TensorFlow.js (https://github.com/tensorflow/tfjs)
+  Licensed under the Apache License, Version 2.0.
+  examples/web-bench/patches/@tensorflow__tfjs-backend-webgpu@4.22.0.patch modifies
+  dist/transpose_webgpu.js of @tensorflow/tfjs-backend-webgpu 4.22.0.
+
+Third-party data and models are NOT included in this repository and are NOT covered by its
+license:
+
+- AGORA dataset (https://agora.is.tue.mpg.de) and SMPL-X (https://smpl-x.is.tue.mpg.de) are
+  provided by the Max Planck Institute for Intelligent Systems under their own licenses, which
+  restrict use to non-commercial purposes and prohibit redistribution. Training data generated
+  from them by tools/agora and models trained on such data are subject to those licenses.
+- RTMDet-Ins pretrained weights are distributed by OpenMMLab.
