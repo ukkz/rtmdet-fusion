@@ -236,8 +236,8 @@ class BoneLoss(nn.Module):
         if N == 0:
             return torch.tensor(0.0, device=device)
 
-        total_loss = torch.tensor(0.0, device=device)
-        valid_bones = 0
+        loss_sum = torch.tensor(0.0, device=device)
+        weight_sum = torch.tensor(0.0, device=device)
 
         for start_idx, end_idx in self.bone_links:
             # Predicted bone length
@@ -255,20 +255,16 @@ class BoneLoss(nn.Module):
             # L1 loss
             bone_loss = torch.abs(pred_bone_len - target_bone_len)  # (N,)
 
-            # Visibility weighting
+            # Visibility weighting (both end points must be valid)
             if self.use_target_weight and target_weight is not None:
-                # Only when both end points are valid
                 weight = target_weight[:, start_idx] * target_weight[:, end_idx]
-                bone_loss = bone_loss * weight
+            else:
+                weight = torch.ones_like(bone_loss)
+            loss_sum = loss_sum + (bone_loss * weight).sum()
+            weight_sum = weight_sum + weight.sum()
 
-            total_loss = total_loss + bone_loss.mean()
-            valid_bones += 1
-
-        # Normalize by the number of bones
-        if valid_bones > 0:
-            total_loss = total_loss / valid_bones
-
-        return total_loss * self.loss_weight
+        # Weighted mean over all bones of all instances (unsupervised bones do not dilute it)
+        return loss_sum / weight_sum.clamp(min=1e-6) * self.loss_weight
 
 
 class BoneDirectionLoss(nn.Module):
@@ -319,8 +315,8 @@ class BoneDirectionLoss(nn.Module):
         if N == 0:
             return torch.tensor(0.0, device=device)
 
-        total_loss = torch.tensor(0.0, device=device)
-        valid_bones = 0
+        loss_sum = torch.tensor(0.0, device=device)
+        weight_sum = torch.tensor(0.0, device=device)
 
         for start_idx, end_idx in self.bone_links:
             pred_vec = pred[:, end_idx] - pred[:, start_idx]  # (N, 3)
@@ -335,15 +331,13 @@ class BoneDirectionLoss(nn.Module):
 
             if self.use_target_weight and target_weight is not None:
                 weight = target_weight[:, start_idx] * target_weight[:, end_idx]
-                bone_loss = bone_loss * weight
+            else:
+                weight = torch.ones_like(bone_loss)
+            loss_sum = loss_sum + (bone_loss * weight).sum()
+            weight_sum = weight_sum + weight.sum()
 
-            total_loss = total_loss + bone_loss.mean()
-            valid_bones += 1
-
-        if valid_bones > 0:
-            total_loss = total_loss / valid_bones
-
-        return total_loss * self.loss_weight
+        # Weighted mean over all bones of all instances (unsupervised bones do not dilute it)
+        return loss_sum / weight_sum.clamp(min=1e-6) * self.loss_weight
 
 
 class CoordL2Loss(nn.Module):

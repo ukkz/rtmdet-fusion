@@ -2075,8 +2075,10 @@ def create_variant_context(
         img_size=args.img_size
     ).to(device)
 
+    # The bone losses average over the supervised bones (weight sum); the weights are half of
+    # the v2.0.0 ones, which averaged over all bones (about half of them are unsupervised)
     bone_loss_fn = BoneLoss(
-        loss_weight=10.0,
+        loss_weight=5.0,
         use_target_weight=True
     ).to(device)
 
@@ -2142,7 +2144,7 @@ def create_variant_context(
             use_target_weight=True, loss_weight=1.0 * body_scale
         ).to(device)
         body_bone_loss_fn = BoneLoss(
-            loss_weight=10.0 * body_scale,
+            loss_weight=5.0 * body_scale,
             use_target_weight=True,
             bone_links=BODY_BONE_LINKS,
         ).to(device)
@@ -2466,8 +2468,8 @@ def main():
     parser.add_argument('--image-coord-weight', type=float, default=10.0,
                         help='Weight of the image-coordinate L2 loss (0 disables it, '
                              'default: 10.0)')
-    parser.add_argument('--bone-direction-weight', type=float, default=5.0,
-                        help='Weight of the bone direction loss (0 disables it, default: 5.0)')
+    parser.add_argument('--bone-direction-weight', type=float, default=2.5,
+                        help='Weight of the bone direction loss (0 disables it, default: 2.5)')
     parser.add_argument('--body-weight', type=float, default=1.0,
                         help='Scale of the whole body loss group (0 disables the body losses, '
                              'default: 1.0)')

@@ -56,7 +56,7 @@ uv run python tools/train.py --amp --resume best --mask-weight 4.0 --epochs 50
 | `--no-ema` / `--ema-decay` | on / 0.9998 | 重みの指数移動平均 |
 | `--body-weight` | 1.0 | 全身系の損失全体の倍率（0で全身系の損失を学習しません。頭部のin_frameは残ります） |
 | `--mask-weight` / `--depth-weight` | 0 / 5.0 | マスク・深度の損失の重み（`--mask-weight` > 0でブランチを作ります） |
-| `--consistency-weight` / `--image-coord-weight` / `--bone-direction-weight` | 5 / 10 / 5 | 位置ずれ対策の損失（0で無効） |
+| `--consistency-weight` / `--image-coord-weight` / `--bone-direction-weight` | 5 / 10 / 2.5 | 位置ずれ対策の損失（0で無効） |
 | `--train-ann` / `--val-ann` / `--img-dir` / `--val-img-dir` | `data/`配下 | データの場所 |
 | `--experiment` | off | tagの無いコミット・未コミットの変更での学習を許します（§1） |
 
@@ -73,8 +73,8 @@ uv run python tools/train.py --amp --resume best --mask-weight 4.0 --epochs 50
 | 参照bbox GIoU（`HeadBboxIoULoss`） | 2.0 | 頭部・全身の参照bbox |
 | 参照bbox L1（`HeadBboxL1Loss`） | 12.0 | その時の入力解像度で正規化したL1（マルチスケールでも重みは変わりません） |
 | SimCC（`SimCCLoss`） | 1.0（β = 10） | x / y / z各軸のビン分布とガウシアンターゲット（σ = 0.03）のKLダイバージェンス |
-| 骨長（`BoneLoss`） | 10.0 | 骨の長さ（頭部13本・全身34本） |
-| 骨方向（`BoneDirectionLoss`） | 5.0 | 骨の向き（コサイン類似度）。点群全体の平行なずれを抑えます |
+| 骨長（`BoneLoss`） | 5.0 | 骨の長さ（頭部13本・全身34本） |
+| 骨方向（`BoneDirectionLoss`） | 2.5 | 骨の向き（コサイン類似度）。点群全体の平行なずれを抑えます |
 | 座標L2（`CoordL2Loss`） | 15.0 | 参照bbox相対座標の直接回帰（SimCCの崩壊を防ぎます） |
 | 画像座標L2（`ImageCoordL2Loss`） | 10.0 | 画像上の位置（x / z）の誤差を、正解の参照bboxの大きさで割ったL2。予測は特徴を取った参照bboxで、正解はGTから画像座標に戻します。x / zを同じ尺度で測り（座標L2は参照bboxの幅・高さで別々に測ります）、参照bboxの摂動にも左右されません |
 | jitter一貫性（`BboxJitterConsistencyLoss`） | 5.0 | 摂動の異なる2つの参照bboxから得た画像座標を一致させます（どちらかの参照bboxで[-0.125, 1.125]を外れる点は除きます） |
@@ -84,6 +84,7 @@ uv run python tools/train.py --amp --resume best --mask-weight 4.0 --epochs 50
 | 深度（`MaskedDepthL1Loss`） | 5.0（stage 2） | 教師がある画素だけのL1 |
 
 画面外の点（AGORAは画面外でも正しい座標を持つ）は座標の損失を重み0.3で監督し、画面内かどうかはin_frameで別に学習します。
+骨の損失は、両端の点の重みの積を骨の重みとし、その重み和で平均します（監督しない骨が多いバッチでも強さが変わりません）。
 
 ## 5. 学習の工夫
 
