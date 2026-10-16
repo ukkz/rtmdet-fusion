@@ -63,7 +63,7 @@ import threading
 import time
 import traceback
 from datetime import datetime
-from multiprocessing import Manager, Pool, cpu_count, Event as MPEvent
+from multiprocessing import cpu_count, get_context, Event as MPEvent
 from pathlib import Path
 from typing import Optional
 
@@ -876,6 +876,10 @@ def main():
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         print(f"\ncreated: {OUTPUT_DIR}")
 
+    # Always spawn the workers: CUDA is already initialized in this process (JPEG encoder and
+    # image processor checks above), and a forked child (the Linux default) cannot use it
+    mp_context = get_context("spawn")
+
     for split in splits:
         print(f"\nProcessing: {split}")
 
@@ -903,7 +907,7 @@ def main():
         for i, pkl_path in enumerate(pkl_files):
             chunks[i % actual_workers].append(pkl_path)
 
-        manager = Manager()
+        manager = mp_context.Manager()
         stop_event = manager.Event()  # stops the workers (multiprocessing)
         display_stop_event = threading.Event()  # stops the display threads
 
@@ -925,7 +929,7 @@ def main():
             )
             keyboard_thread.start()
 
-            with Pool(actual_workers) as pool:
+            with mp_context.Pool(actual_workers) as pool:
                 results = pool.map(process_worker, worker_args)
 
             display_stop_event.set()
@@ -957,7 +961,7 @@ def main():
             )
             keyboard_thread.start()
 
-            with Pool(actual_workers) as pool:
+            with mp_context.Pool(actual_workers) as pool:
                 results = pool.map(process_worker, worker_args)
 
             # Stop the threads
