@@ -1160,11 +1160,12 @@ def train_one_epoch_dual(
                             )
                             loss = loss + coord_loss
                         if ctx.image_coord_loss_fn is not None:
-                            # Image-coordinate L2 (pred and target both mapped through the bbox)
+                            # Image-plane position error: prediction through the bbox it was
+                            # predicted in, target from the GT, in units of the GT bbox size
                             image_coord_loss = ctx.image_coord_loss_fn(
-                                pred_coords, jittered_gt_kpts,
-                                jittered_bboxes, jittered_bboxes,
-                                cat_target_weights,
+                                pred_coords, cat_gt_kpts,
+                                jittered_bboxes, cat_gt_head_bboxes,
+                                cat_target_weights, norm_bbox=gt_expanded,
                             )
                             loss = loss + image_coord_loss
 
@@ -1241,9 +1242,10 @@ def train_one_epoch_dual(
 
                         # Scheduled sampling (same schedule as the head)
                         use_gt_body = torch.rand(n_body, device=device) < gt_prob
+                        gb_expanded = model.body_kpt_head.expand_bbox(gb)
                         body_selected = torch.where(
                             use_gt_body.unsqueeze(1).expand(-1, 4),
-                            model.body_kpt_head.expand_bbox(gb),
+                            gb_expanded,
                             model.body_kpt_head.expand_bbox(pb.detach()),
                         )
 
@@ -1309,8 +1311,8 @@ def train_one_epoch_dual(
                                 )
                             if ctx.body_image_coord_loss_fn is not None:
                                 loss = loss + ctx.body_image_coord_loss_fn(
-                                    body_pred_coords, body_jkpts,
-                                    body_jbboxes, body_jbboxes, body_tw,
+                                    body_pred_coords, cat_gt_body_kpts[bsel],
+                                    body_jbboxes, gb, body_tw, norm_bbox=gb_expanded,
                                 )
                             if ctx.body_consistency_loss_fn is not None:
                                 # Second jitter pass, agreement in image coordinates
@@ -2091,7 +2093,7 @@ def create_variant_context(
         use_target_weight=True
     ).to(device)
 
-    # Image-coordinate L2 loss (supervises absolute positions, not bbox-relative ones)
+    # Image-coordinate L2 loss (isotropic image-plane position error in units of the GT bbox size)
     image_coord_loss_fn = None
     if args.image_coord_weight > 0:
         image_coord_loss_fn = ImageCoordL2Loss(

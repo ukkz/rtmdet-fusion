@@ -76,7 +76,7 @@ uv run python tools/train.py --amp --resume best --mask-weight 4.0 --epochs 50
 | 骨長（`BoneLoss`） | 10.0 | 骨の長さ（頭部13本・全身34本） |
 | 骨方向（`BoneDirectionLoss`） | 5.0 | 骨の向き（コサイン類似度）。点群全体の平行なずれを抑えます |
 | 座標L2（`CoordL2Loss`） | 15.0 | 参照bbox相対座標の直接回帰（SimCCの崩壊を防ぎます） |
-| 画像座標L2（`ImageCoordL2Loss`） | 10.0 | 参照bboxの大きさで画像座標に戻したx / zのL2（予測と正解に同じ参照bboxを使います） |
+| 画像座標L2（`ImageCoordL2Loss`） | 10.0 | 画像上の位置（x / z）の誤差を、正解の参照bboxの大きさで割ったL2。予測は特徴を取った参照bboxで、正解はGTから画像座標に戻します。x / zを同じ尺度で測り（座標L2は参照bboxの幅・高さで別々に測ります）、参照bboxの摂動にも左右されません |
 | jitter一貫性（`BboxJitterConsistencyLoss`） | 5.0 | 摂動の異なる2つの参照bboxから得た画像座標を一致させます（どちらかの参照bboxで[-0.125, 1.125]を外れる点は除きます） |
 | visibility（`VisibilityBCELoss`） | 0.5 | 遮蔽されていないか |
 | in_frame（`InFrameBCELoss`） | 0.5 | 画面内か |

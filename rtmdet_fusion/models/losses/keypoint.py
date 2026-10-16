@@ -411,13 +411,17 @@ class CoordL2Loss(nn.Module):
 
 
 class ImageCoordL2Loss(nn.Module):
-    """L2 loss in image coordinates
+    """Isotropic L2 loss on the keypoint positions in the image plane
 
-    CoordL2Loss works on bbox-relative coordinates, so it depends on how the bbox is placed
-    and sized. This loss maps both prediction and GT to image coordinates first, directly
-    supervising where in the image each keypoint should be.
+    The prediction is mapped to image coordinates through the bbox it was predicted in (the
+    jittered / predicted reference bbox) and the target through the GT keypoints and their GT
+    bbox. The error is divided by one size per instance taken from norm_bbox (the expanded GT
+    bbox), so the loss measures the image-plane position error in units of the person's size:
+    the same in x and z, and independent of how the reference bbox was jittered or predicted.
 
-    Normalized by the bbox size so that the loss scale does not depend on the bbox size.
+    CoordL2Loss instead measures x and z in units of the current reference bbox's width and
+    height separately, which weights x and z differently for non-square bboxes (a standing
+    person's body bbox) and scales with the jitter.
 
     Args:
         loss_weight: loss weight (default 10.0)
@@ -440,15 +444,18 @@ class ImageCoordL2Loss(nn.Module):
         pred_bbox: torch.Tensor,
         target_bbox: torch.Tensor,
         target_weight: torch.Tensor = None,
+        norm_bbox: torch.Tensor = None,
     ) -> torch.Tensor:
         """Compute the image-coordinate L2 loss
 
         Args:
             pred_rel: predicted relative coordinates (N, K, 3) [rel_x, rel_y, rel_z]
-            target_rel: GT relative coordinates (N, K, 3)
+            target_rel: GT relative coordinates (N, K, 3) w.r.t. target_bbox
             pred_bbox: reference bbox of the prediction (N, 4) [x1, y1, x2, y2]
             target_bbox: reference bbox of the GT (N, 4)
             target_weight: visibility weight (N, K) or None
+            norm_bbox: bbox whose size ((w + h) / 2) normalizes the error (N, 4);
+                       None uses target_bbox
 
         Returns:
             loss: scalar loss
@@ -459,30 +466,17 @@ class ImageCoordL2Loss(nn.Module):
         if N == 0:
             return torch.tensor(0.0, device=device, requires_grad=True)
 
-        # pred_rel -> image coordinates
-        p_x1 = pred_bbox[:, 0:1]  # (N, 1)
-        p_y1 = pred_bbox[:, 1:2]
-        p_x2 = pred_bbox[:, 2:3]
-        p_y2 = pred_bbox[:, 3:4]
-        p_w = p_x2 - p_x1
-        p_h = p_y2 - p_y1
+        def to_image(rel, bbox):
+            x1, y1 = bbox[:, 0:1], bbox[:, 1:2]
+            w, h = bbox[:, 2:3] - x1, bbox[:, 3:4] - y1
+            # z -> image Y is flipped
+            return rel[:, :, 0] * w + x1, (1.0 - rel[:, :, 2]) * h + y1
 
-        pred_img_x = pred_rel[:, :, 0] * p_w + p_x1
-        pred_img_y = (1.0 - pred_rel[:, :, 2]) * p_h + p_y1  # z -> image Y is flipped
+        pred_img_x, pred_img_y = to_image(pred_rel, pred_bbox)
+        target_img_x, target_img_y = to_image(target_rel, target_bbox)
 
-        # target_rel -> image coordinates
-        t_x1 = target_bbox[:, 0:1]
-        t_y1 = target_bbox[:, 1:2]
-        t_x2 = target_bbox[:, 2:3]
-        t_y2 = target_bbox[:, 3:4]
-        t_w = t_x2 - t_x1
-        t_h = t_y2 - t_y1
-
-        target_img_x = target_rel[:, :, 0] * t_w + t_x1
-        target_img_y = (1.0 - target_rel[:, :, 2]) * t_h + t_y1
-
-        # Normalize by the mean bbox size of prediction and target
-        norm = ((p_w + p_h + t_w + t_h) / 4.0).clamp(min=1e-6)  # (N, 1)
+        nb = target_bbox if norm_bbox is None else norm_bbox
+        norm = ((nb[:, 2:3] - nb[:, 0:1] + nb[:, 3:4] - nb[:, 1:2]) / 2.0).clamp(min=1e-6)  # (N, 1)
 
         dx = (pred_img_x - target_img_x) / norm
         dy = (pred_img_y - target_img_y) / norm
