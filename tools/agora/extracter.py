@@ -251,8 +251,7 @@ def process_pkl_file(
         ignore_count: persons marked ignore (head bbox too small / head out of frame)
         was_stopped: whether processing was interrupted by the stop signal
     """
-    with open(pkl_path, "rb") as f:
-        data = pd.compat.pickle_compat.load(f)
+    data = pd.read_pickle(pkl_path)
 
     images = []
     annotations = []
@@ -549,9 +548,7 @@ def process_worker(args: tuple) -> tuple[list[Path], int, bool]:
         total_rows = 0
         if progress_queue is not None:
             for pkl_path in pkl_files:
-                with open(pkl_path, "rb") as f:
-                    data = pd.compat.pickle_compat.load(f)
-                    total_rows += len(data)
+                total_rows += len(pd.read_pickle(pkl_path))
             current_context["total_rows"] = total_rows
             try:
                 progress_queue.put((worker_id, 0, total_rows))

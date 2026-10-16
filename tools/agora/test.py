@@ -210,8 +210,7 @@ class MainWindow(QMainWindow):
         for attempt in range(MAX_CROP_RETRIES):
             split, pkl_path = random.choice(self.pkl_files)
 
-            with open(pkl_path, "rb") as f:
-                data = pd.compat.pickle_compat.load(f)
+            data = pd.read_pickle(pkl_path)
 
             if len(data) == 0:
                 continue

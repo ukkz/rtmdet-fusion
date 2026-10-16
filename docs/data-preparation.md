@@ -19,7 +19,7 @@
 - マスクはシーンごとのフォルダに、人物ごとのマスクと全員分の統合マスク（`_00000`）がある前提です
 - `withjv.pkl`で使う列: `imgPath`、`isValid`、`gt_joints_2d`、`gt_joints_3d`、`gt_verts`（あれば`gt_path_smplx`・`kid`・`occlusion`）
 - SMPL-Xのアセットが無いと、部位マスクと深度の教師は空になります
-- `tools/agora`はpklの読み込みにpandas 2.xを使います（`pyproject.toml`には含めていないので`uv pip install "pandas<3"`。pandas 3.xには未対応です）
+- `tools/agora`はpklの読み込みにpandasを使います（`pyproject.toml`には含めていないので`uv pip install "pandas<3"`。抽出の動作確認はpandas 2.xで行っています）
 
 ```
 $AGORA_DIR/
