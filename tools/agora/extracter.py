@@ -38,7 +38,7 @@ own licenses):
     weights/smplx/smplx_vert_segmentation.json   SMPL-X vertex part segmentation (Meshcapade)
 Without the SMPL-X assets the part mask and depth teachers are left empty.
 
-Outputs (under data/, which is cleared first):
+Outputs (under data/; the output of the selected splits is cleared first):
     {split}/images/[N/]<crop>.jpg, <crop>_m.jpg   crops (train keeps the source subfolder N)
     {split}/depth/[N/]<crop>_<k>.png              depth teachers (uint16 millimetres)
     head_keypoints_{split}.json                   COCO-style annotations
@@ -821,6 +821,15 @@ def main():
             "Every crop needs an RTMDet-Ins match, so extraction would produce no data."
         )
 
+    splits = ["train", "validation"] if args.split == "both" else [args.split]
+    split_pkl_files = {}
+    for split in splits:
+        smplx_dir = agora_dir / split / "SMPLX"
+        pkl_files = sorted(smplx_dir.glob(f"{split}_*_withjv.pkl"))
+        if not pkl_files:
+            sys.exit(f"Error: no {split}_*_withjv.pkl in {smplx_dir}")
+        split_pkl_files[split] = pkl_files[:args.max_files] if args.max_files else pkl_files
+
     n_workers = args.workers if args.workers else cpu_count()
 
     resolution_config.init(args.resolution, agora_dir)
@@ -844,42 +853,27 @@ def main():
     for cs in valid_sizes:
         print(f"  - {cs['width']}x{cs['height']}")
 
-    # Reset the output directory
+    # Reset the output of the selected splits (the other split is kept)
     print("\nResetting the output directory...")
     if not OUTPUT_DIR.exists():
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         print(f"  created: {OUTPUT_DIR}")
-    for s in ["train", "validation"]:
-        split_dir = CROPPED_DIR / s
-        if split_dir.exists():
-            shutil.rmtree(split_dir)
-            print(f"  removed: {split_dir}")
-    for s in ["train", "validation"]:
-        json_file = OUTPUT_DIR / f"head_keypoints_{s}.json"
-        if json_file.exists():
-            json_file.unlink()
-            print(f"  removed: {json_file}")
-    partial_dir = OUTPUT_DIR / "partial"
-    if partial_dir.exists():
-        shutil.rmtree(partial_dir)
-        print(f"  removed: {partial_dir}")
-
-    splits = ["train", "validation"] if args.split == "both" else [args.split]
+    for split in splits:
+        for path in [CROPPED_DIR / split, OUTPUT_DIR / f"head_keypoints_{split}.json",
+                     OUTPUT_DIR / "partial" / split]:
+            if path.is_dir():
+                shutil.rmtree(path)
+            elif path.exists():
+                path.unlink()
+            else:
+                continue
+            print(f"  removed: {path}")
 
     for split in splits:
         print(f"\nProcessing: {split}")
 
-        smplx_dir = agora_dir / split / "SMPLX"
-        pkl_files = sorted(smplx_dir.glob(f"{split}_*_withjv.pkl"))
-
-        if args.max_files:
-            pkl_files = pkl_files[:args.max_files]
-
+        pkl_files = split_pkl_files[split]
         print(f"  pkl files: {len(pkl_files)}")
-
-        if len(pkl_files) == 0:
-            print(f"  skipped (no {split}_*_withjv.pkl in {smplx_dir})")
-            continue
 
         # No more workers than files
         actual_workers = min(n_workers, len(pkl_files))

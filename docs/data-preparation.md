@@ -39,7 +39,7 @@ $AGORA_DIR/
 # 抽出ロジックの確認（pkl から 1 枚ずつ抽出してその場で表示する。データは書き出さない）
 uv run python tools/agora/test.py --agora-dir /path/to/agora
 
-# 生成（data/ を消してから作り直す）
+# 生成（選んだ split の出力を data/ から消してから作り直す）
 uv run python tools/agora/extracter.py --agora-dir /path/to/agora --crops-per-image 10
 
 # 生成したデータの確認
@@ -55,7 +55,7 @@ uv run python tools/agora/viewer.py
 | `--workers` | CPU数 | 並列プロセス数 |
 | `--max-files` | - | splitあたりのpkl数の上限（動作確認用） |
 
-- **`data/`は実行のたびに消して作り直します**
+- **`--split`で選んだsplitの出力（画像・深度・JSON）は、実行のたびに消して作り直します**。もう一方のsplitの出力は残ります。選んだsplitのpklが見つからない場合は、何も消さずに止まります
 - 生成中に`q`を押すと（macOS・Linuxでは`q`のあとEnter）、そのsplitの処理済みの分を保存して止まります。`--split both`では次のsplitの処理に進みます
 - 4Kの全量（`--crops-per-image 10`）でtrain約28万枚・44GB、validation約2万枚・3GBになります
 
