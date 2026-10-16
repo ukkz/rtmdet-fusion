@@ -2486,6 +2486,26 @@ def main():
     work_dir = Path(args.work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
 
+    # Start epoch
+    start_epoch = 0
+    if args.start_epoch is not None:
+        start_epoch = args.start_epoch
+    elif args.resume:
+        # Continue after the checkpoint's epoch (taken from the first variant)
+        resume_path = work_dir / f'{args.resume}_model_{variant_list[0]}.pth'
+        if resume_path.exists():
+            ckpt = torch.load(resume_path, map_location='cpu', weights_only=False)
+            start_epoch = ckpt.get('epoch', 0) + 1
+            del ckpt
+            print(f"Resuming from epoch {start_epoch}")
+    # Refuse before anything is loaded: the loop would not run and final_model would be
+    # overwritten with the unchanged weights
+    if start_epoch >= args.epochs:
+        print(f"Error: the start epoch ({start_epoch}) is not below --epochs ({args.epochs}); "
+              f"nothing to train. --epochs is the total epoch count, so pass a larger value "
+              f"to continue training.", file=sys.stderr)
+        sys.exit(1)
+
     print("Creating variant contexts...")
     contexts: List[VariantContext] = []
     for variant_name in variant_list:
@@ -2558,18 +2578,6 @@ def main():
     log_dir = work_dir / 'tensorboard' / run_name
     writer = SummaryWriter(log_dir=str(log_dir))
     print(f"TensorBoard log dir: {log_dir}")
-
-    # Start epoch
-    start_epoch = 0
-    if args.start_epoch is not None:
-        start_epoch = args.start_epoch
-    elif args.resume:
-        # Continue after the checkpoint's epoch (taken from the first variant)
-        resume_path = work_dir / f'{args.resume}_model_{variant_list[0]}.pth'
-        if resume_path.exists():
-            ckpt = torch.load(resume_path, map_location='cpu', weights_only=False)
-            start_epoch = ckpt.get('epoch', 0) + 1
-            print(f"Resuming from epoch {start_epoch}")
 
     # Fast-forward the LR schedulers to start_epoch (cosine applies the decay of the epochs
     # already done; plateau keeps no per-epoch state)
