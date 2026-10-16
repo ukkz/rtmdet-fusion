@@ -17,7 +17,8 @@ Keys:
     R: extract with a forced rotation
     X: toggle ignore of the selected person
     V: cycle the view mode (head / body / parts / depth / occlusion)
-    Click: select a person, or toggle the RTMDet-Ins mask layer
+    Left click: select a person
+    Right click: toggle the RTMDet-Ins mask layer
     Q/ESC: quit
 
 Usage:
@@ -161,7 +162,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage(
             "Enter/Space: next image | R: force rotation | X: toggle ignore | "
-            "V: view mode | Click: layer | Q: quit"
+            "V: view mode | Click: select | Right click: layer | Q: quit"
         )
 
         self.current_annotations = []
@@ -259,7 +260,7 @@ class MainWindow(QMainWindow):
                 if self.rtmdet_ins:
                     print("RTMDet-Ins ready for inference")
                 else:
-                    print("RTMDet-Ins not available (click layer toggle disabled)")
+                    print("RTMDet-Ins not available (mask layer disabled)")
 
             result = run_ins_inference_and_match(result, self.rtmdet_ins)
 
@@ -329,7 +330,7 @@ class MainWindow(QMainWindow):
             cx=info.get("cx"),
             cy=info.get("cy"),
             annotations=self.current_annotations,
-            shortcuts="[Enter/Space: Next] [R: Rotate] [X: Toggle Ignore] [V: View Mode] [Click: Layer] [Q: Quit]",
+            shortcuts="[Enter/Space: Next] [R: Rotate] [X: Toggle Ignore] [V: View Mode] [Click: Select] [Right click: Layer] [Q: Quit]",
         )
 
         # Teacher statistics line
@@ -405,11 +406,11 @@ class MainWindow(QMainWindow):
                 f"[INS] Matched: {n_matched}/{n_ins} | "
                 f"Unmatched INS: {n_unmatched_ins} | Unmatched GT: {n_unmatched_gt} | "
                 f"Avg IoU: {avg_iou:.2f} | Avg Cov: {avg_cov:.2f} | "
-                "(click to go back)"
+                "(right click to go back)"
             )
             self.status_bar.showMessage(msg)
         else:
-            self.status_bar.showMessage("Showing annotations (click to show the predicted masks)")
+            self.status_bar.showMessage("Showing annotations (right click to show the predicted masks)")
 
     def _update_3d_views(self, annotations: list):
         """Rebuild the 3D views (31 body points in body mode)"""

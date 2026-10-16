@@ -875,10 +875,11 @@ class ImageWidget(QWidget):
             y += line_height
 
     def mousePressEvent(self, event):
-        """On click, report image coordinates (padding included)
+        """Handle clicks inside the padded image area
 
-        - with predicted masks: toggle the inference layer
-        - otherwise: emit the clicked coordinates
+        - left click: emit the image coordinates (padding included) to select a person; the
+          inference layer is hidden so that the selection is visible
+        - right click: toggle the inference layer (when predicted masks exist)
         """
         padded_rect, scale = self._get_padded_image_rect()
         if not padded_rect.isEmpty():
@@ -886,9 +887,12 @@ class ImageWidget(QWidget):
             # Clicks inside the padded area (including outside the image)
             pad = self.VIRTUAL_PADDING
             if -pad <= img_x < self._image_size[0] + pad and -pad <= img_y < self._image_size[1] + pad:
-                if self._inference_masks:
-                    self.toggle_inference_layer()
-                else:
+                if event.button() == Qt.RightButton:
+                    if self._inference_masks:
+                        self.toggle_inference_layer()
+                elif event.button() == Qt.LeftButton:
+                    if self._show_inference_layer:
+                        self.toggle_inference_layer()
                     self.clicked.emit(img_x, img_y)
         super().mousePressEvent(event)
 

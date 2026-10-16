@@ -15,7 +15,8 @@ Keys:
     Space: random image with overlapping person bboxes
     X: toggle ignore of the selected person (saved to the JSON on exit)
     V: cycle the view mode (head / body / parts / depth / occlusion)
-    Click: select a person, or toggle the RTMDet-Ins mask layer
+    Left click: select a person
+    Right click: toggle the RTMDet-Ins mask layer
     Q/ESC: quit
 
 Keypoint display:
@@ -343,7 +344,7 @@ class MainWindow(QMainWindow):
             cx=img_info.get("cx"),
             cy=img_info.get("cy"),
             annotations=annotations,
-            shortcuts="[Enter/Space: Next] [X: Toggle Ignore] [V: View Mode] [Click: Layer] [Q: Quit]",
+            shortcuts="[Enter/Space: Next] [X: Toggle Ignore] [V: View Mode] [Click: Select] [Right click: Layer] [Q: Quit]",
         )
 
         # Teacher statistics line
@@ -382,7 +383,7 @@ class MainWindow(QMainWindow):
             if self.rtmdet_ins:
                 print("RTMDet-Ins ready for inference")
             else:
-                print("RTMDet-Ins not available (click layer toggle disabled)")
+                print("RTMDet-Ins not available (mask layer disabled)")
 
         if self.rtmdet_ins is None:
             self.image_widget.set_inference_masks([])
@@ -461,11 +462,11 @@ class MainWindow(QMainWindow):
                 f"[INS] Matched: {n_matched}/{n_ins} | "
                 f"Unmatched INS: {n_unmatched_ins} | Unmatched GT: {n_unmatched_gt} | "
                 f"Avg IoU: {avg_iou:.2f} | Avg Cov: {avg_cov:.2f} | "
-                "(click to go back)"
+                "(right click to go back)"
             )
             self.status_bar.showMessage(msg)
         else:
-            self.status_bar.showMessage("Showing annotations (click to show the predicted masks)")
+            self.status_bar.showMessage("Showing annotations (right click to show the predicted masks)")
 
     def _update_3d_views(self, annotations: list):
         """Rebuild the 3D views (31 body points in body mode)"""
