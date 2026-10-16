@@ -64,7 +64,7 @@ from configs.default import (
 )
 
 from rtmdet_fusion.models.fusion_model import (
-    BboxFeatureExtractor, HeadBboxHead, DCCHead, MaskDepthBranch
+    BboxFeatureExtractor, HeadBboxHead, DCCHead, MaskDepthBranch, feature_sampling_of
 )
 from rtmdet_fusion.models.encoders import HybridEncoder
 from rtmdet_fusion.utils.versioning import check_checkpoint_version
@@ -233,6 +233,9 @@ def load_model(checkpoint_path: str, rtmdet_weights: Optional[str], device: str)
 
     for key in REQUIRED_CHECKPOINT_KEYS:
         getattr(model, key.removesuffix('_state_dict')).load_state_dict(checkpoint[key])
+    # Feature sampling the weights were trained with (v2.0.0 checkpoints: legacy)
+    model.bbox_feat_extractor.sampling = feature_sampling_of(checkpoint.get('config', {}))
+    print(f"Feature sampling: {model.bbox_feat_extractor.sampling}")
 
     # Absent in stage-1 checkpoints (trained with the mask/depth branch disabled)
     if 'mask_depth_branch_state_dict' in checkpoint:

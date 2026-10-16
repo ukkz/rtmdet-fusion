@@ -198,6 +198,15 @@ FPN_STRIDES = [8, 16, 32]
 # (G x G points; 14 x 14 = 196 points makes use of the P3/P4 resolution)
 GRID_SIZE = 14
 
+# How the bbox grid is mapped onto the FPN feature maps (BboxFeatureExtractor), recorded in
+# checkpoint['config']['feature_sampling'].
+# - 'stride': feature cell i of every level sits at image coordinate i * stride (the convention
+#   of the RTMDet priors and MaskDepthBranch). Used for new training.
+# - 'legacy': the bbox was normalized by the image size for all levels, which shrinks the grid
+#   towards the top-left by up to one cell. v2.0.0 checkpoints record no mode and use it.
+FEATURE_SAMPLING = 'stride'
+FEATURE_SAMPLING_LEGACY = 'legacy'
+
 # SimCC bins of the head keypoints (coordinate classification resolution).
 # 64 bins over [-BIN_MARGIN, 1 + BIN_MARGIN]: ~0.02 spacing, about 2 px for a 100 px head bbox.
 # The training target (sigma=0.03) is a Gaussian roughly 4 bins wide.

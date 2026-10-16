@@ -123,6 +123,7 @@ class RTMDetFusionCoreML(nn.Module):
             in_channels=256,
             out_channels=256,
             grid_size=GRID_SIZE,
+            sampling=head_cfg['feature_sampling'],
         )
 
         self.head_bbox_head = HeadBboxHeadCoreML(

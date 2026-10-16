@@ -51,6 +51,12 @@ bbox領域を14×14 = 196点のグリッドで双線形補間して標本化し�
 どのFPNレベルから取るかは検出のpriorのstrideで決め、one-hotの重み付き和で選びます（gatherを使いません）。
 書き出し時は`F.grid_sample`の代わりに、同じ値を行列積で求める`separable_bilinear_sample`を使います（[export.md](export.md)）。
 
+グリッド点の画像座標は、どのレベルでも「特徴セルiが画像座標i × strideにある」（RTMDetのpriorと同じ規約）として
+特徴マップ上の位置に写します（`bbox_sampling_axes`）。v2.0.0までは全レベルで画像サイズを基準に正規化していたため、
+グリッドが画像の左上へ最大1セル分縮んでいました（strideが32のレベルでは右端で約−30px）。
+この方式はチェックポイントの`config['feature_sampling']`に記録され（`stride`）、記録の無いv2.0.0のチェックポイントは
+旧方式（`legacy`）で学習・viewer・書き出しのすべてが動きます。
+
 ### HeadBboxHead / BodyBboxHead
 
 人物bboxのグリッド特徴を平均してMLPで回帰し、参照bboxを出します。人物bboxの中心から

@@ -23,7 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from configs.default import (
-    NUM_KEYPOINTS, FPN_STRIDES, BBOX_EXPAND_RATIO
+    NUM_KEYPOINTS, FPN_STRIDES, BBOX_EXPAND_RATIO, FEATURE_SAMPLING, FEATURE_SAMPLING_LEGACY,
 )
 
 from rtmdet_fusion.models.encoders import DynamicBinEncoding, SinePositionalEncoding2D
@@ -211,6 +211,58 @@ def separable_bilinear_sample(
     return torch.matmul(wy, t)  # (N, C, G, H) @ (N, C, H, G) -> (N, C, G, G)
 
 
+def feature_sampling_of(config: dict) -> str:
+    """Feature sampling mode recorded in a checkpoint config (none recorded: v2.0.0, legacy)"""
+    return config.get('feature_sampling', FEATURE_SAMPLING_LEGACY)
+
+
+def bbox_sampling_axes(
+    bboxes: torch.Tensor,
+    img_size: int,
+    feat_h: int,
+    feat_w: int,
+    grid_size: int,
+    sampling: str,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Normalized sampling coordinates of the bbox grid on one FPN level
+
+    For F.grid_sample / separable_bilinear_sample with align_corners=True, where -1 and +1 are
+    the centres of the first and last feature cells.
+
+    - 'stride': cell i sits at image coordinate i * stride (stride = img_size / feat_w), so an
+      image coordinate X maps to (X / stride) / (feat_w - 1) on every level
+    - 'legacy': X / img_size for every level, which places image coordinate img_size on the
+      last cell (img_size - stride): the grid shrinks towards the top-left by up to one cell
+
+    Args:
+        bboxes: (N, 4) [x1, y1, x2, y2] in input pixels
+        img_size: input image size
+        feat_h, feat_w: size of the feature map
+        grid_size: G
+        sampling: 'stride' or 'legacy'
+
+    Returns:
+        axis_x: (N, G) normalized column coordinates
+        axis_y: (N, G) normalized row coordinates
+    """
+    if sampling == FEATURE_SAMPLING_LEGACY:
+        x1 = (bboxes[:, 0:1] / img_size) * 2 - 1  # (N, 1)
+        y1 = (bboxes[:, 1:2] / img_size) * 2 - 1
+        x2 = (bboxes[:, 2:3] / img_size) * 2 - 1
+        y2 = (bboxes[:, 3:4] / img_size) * 2 - 1
+    elif sampling == FEATURE_SAMPLING:
+        sx = 2.0 * feat_w / ((feat_w - 1) * img_size)
+        sy = 2.0 * feat_h / ((feat_h - 1) * img_size)
+        x1 = bboxes[:, 0:1] * sx - 1
+        y1 = bboxes[:, 1:2] * sy - 1
+        x2 = bboxes[:, 2:3] * sx - 1
+        y2 = bboxes[:, 3:4] * sy - 1
+    else:
+        raise ValueError(f"Unknown feature sampling mode: {sampling}")
+    base = torch.linspace(0, 1, grid_size, device=bboxes.device).reshape(1, grid_size)
+    return x1 + base * (x2 - x1), y1 + base * (y2 - y1)
+
+
 class BboxFeatureExtractor(nn.Module):
     """Extracts grid features from bbox regions
 
@@ -220,6 +272,9 @@ class BboxFeatureExtractor(nn.Module):
     With matmul_sampling=True (set by the exporters), separable_bilinear_sample is used
     instead of F.grid_sample (numerically equivalent, same state_dict).
     Training and the viewer use F.grid_sample.
+
+    sampling selects how the bbox grid is mapped onto the feature maps (bbox_sampling_axes);
+    it is not part of the state_dict and follows checkpoint['config']['feature_sampling'].
     """
 
     matmul_sampling = False
@@ -228,12 +283,14 @@ class BboxFeatureExtractor(nn.Module):
         self,
         in_channels: int = 256,
         out_channels: int = 256,
-        grid_size: int = 14  # 14x14 = 196 points (makes use of the P3/P4 resolution)
+        grid_size: int = 14,  # 14x14 = 196 points (makes use of the P3/P4 resolution)
+        sampling: str = FEATURE_SAMPLING,
     ):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.grid_size = grid_size
+        self.sampling = sampling
 
         # FPN strides
         self.strides = FPN_STRIDES  # [8, 16, 32]
@@ -253,71 +310,6 @@ class BboxFeatureExtractor(nn.Module):
             nn.Linear(in_channels, out_channels),
             nn.LayerNorm(out_channels),
         )
-
-    def _create_grids_batched(
-        self,
-        bboxes: torch.Tensor,
-        img_size: int
-    ) -> torch.Tensor:
-        """Build the sampling grids of all bboxes at once
-
-        Args:
-            bboxes: (N, 4) [x1, y1, x2, y2]
-            img_size: image size
-
-        Returns:
-            grids: (N, grid_size, grid_size, 2) normalized coordinates [-1, 1]
-        """
-        N = bboxes.shape[0]
-        device = bboxes.device
-        G = self.grid_size
-
-        # Normalize bbox coordinates to [-1, 1]
-        x1 = (bboxes[:, 0] / img_size) * 2 - 1  # (N,)
-        y1 = (bboxes[:, 1] / img_size) * 2 - 1
-        x2 = (bboxes[:, 2] / img_size) * 2 - 1
-        y2 = (bboxes[:, 3] / img_size) * 2 - 1
-
-        # Bbox width and height
-        w = x2 - x1  # (N,)
-        h = y2 - y1
-
-        # Base grid [0, 1] -> (G, G)
-        base_x = torch.linspace(0, 1, G, device=device)
-        base_y = torch.linspace(0, 1, G, device=device)
-        base_grid_y, base_grid_x = torch.meshgrid(base_y, base_x, indexing='ij')
-        # (G, G) -> (1, G, G)
-        base_grid_x = base_grid_x.unsqueeze(0)
-        base_grid_y = base_grid_y.unsqueeze(0)
-
-        # Scale and shift into each bbox
-        # (N, 1, 1) * (1, G, G) -> (N, G, G)
-        grid_x = x1.view(N, 1, 1) + base_grid_x * w.view(N, 1, 1)
-        grid_y = y1.view(N, 1, 1) + base_grid_y * h.view(N, 1, 1)
-
-        # Stack: (N, G, G, 2)
-        grids = torch.stack([grid_x, grid_y], dim=-1)
-
-        return grids
-
-    def _create_axes_batched(
-        self,
-        bboxes: torch.Tensor,
-        img_size: int
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """1D x / y axes of _create_grids_batched (same formula, for matmul sampling)
-
-        Returns:
-            axis_x: (N, grid_size) normalized column coordinates [-1, 1]
-            axis_y: (N, grid_size) normalized row coordinates [-1, 1]
-        """
-        G = self.grid_size
-        x1 = (bboxes[:, 0:1] / img_size) * 2 - 1  # (N, 1)
-        y1 = (bboxes[:, 1:2] / img_size) * 2 - 1
-        x2 = (bboxes[:, 2:3] / img_size) * 2 - 1
-        y2 = (bboxes[:, 3:4] / img_size) * 2 - 1
-        base = torch.linspace(0, 1, G, device=bboxes.device).reshape(1, G)
-        return x1 + base * (x2 - x1), y1 + base * (y2 - y1)
 
     def _stride_to_level(self, strides: torch.Tensor) -> torch.Tensor:
         """Map strides to FPN levels (tensor ops only)
@@ -373,20 +365,21 @@ class BboxFeatureExtractor(nn.Module):
 
         use_matmul = self.matmul_sampling and batch_indices is None
 
-        # === Step 1: build the grids of all bboxes ===
-        if use_matmul:
-            # The matmul version (export) only needs the 1D x / y coordinates
-            # (computed directly: slicing them out of the 4D grid makes onnx2tf mix up axes)
-            axis_x, axis_y = self._create_axes_batched(bboxes, img_size)  # (N, G) x2
-        else:
-            grids = self._create_grids_batched(bboxes, img_size)  # (N, G, G, 2)
-
-        # === Step 2: sample every FPN level ===
+        # === Steps 1-2: sample every FPN level along the bbox grid ===
         all_sampled = []
         for level, feat_map in enumerate(fpn_feats):
+            # 1D x / y coordinates on this level (the matmul version uses them directly:
+            # slicing them out of a 4D grid makes onnx2tf mix up axes)
+            axis_x, axis_y = bbox_sampling_axes(
+                bboxes, img_size, feat_map.shape[-2], feat_map.shape[-1], G, self.sampling
+            )  # (N, G) x2
             if use_matmul:
                 all_sampled.append(separable_bilinear_sample(feat_map, axis_x, axis_y))
                 continue
+            grids = torch.stack([
+                axis_x.unsqueeze(1).expand(N, G, G),
+                axis_y.unsqueeze(2).expand(N, G, G),
+            ], dim=-1)  # (N, G, G, 2)
             if batch_indices is not None:
                 # Batched: take the features of the image each instance belongs to
                 feat_selected = feat_map[batch_indices]  # (N, C, H, W)

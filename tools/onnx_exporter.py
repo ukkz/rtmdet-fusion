@@ -120,7 +120,8 @@ class RTMDetFusionONNX(nn.Module):
         self.bbox_feat_extractor = BboxFeatureExtractor(
             in_channels=256,
             out_channels=256,
-            grid_size=GRID_SIZE
+            grid_size=GRID_SIZE,
+            sampling=head_cfg['feature_sampling'],
         )
         self.bbox_feat_extractor.matmul_sampling = True
 

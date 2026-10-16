@@ -21,11 +21,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from configs.default import (
-    NUM_KEYPOINTS, FPN_STRIDES, BBOX_EXPAND_RATIO
+    NUM_KEYPOINTS, FPN_STRIDES, BBOX_EXPAND_RATIO, FEATURE_SAMPLING,
 )
 
 from rtmdet_fusion.models.encoders import DynamicBinEncoding, SinePositionalEncoding2D
-from rtmdet_fusion.models.fusion_model import MaskDepthBranch, separable_bilinear_sample
+from rtmdet_fusion.models.fusion_model import (
+    MaskDepthBranch, bbox_sampling_axes, separable_bilinear_sample,
+)
 
 
 # ==============================================================================
@@ -191,11 +193,13 @@ class BboxFeatureExtractorCoreML(nn.Module):
         in_channels: int = 256,
         out_channels: int = 256,
         grid_size: int = 14,
+        sampling: str = FEATURE_SAMPLING,
     ):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.grid_size = grid_size
+        self.sampling = sampling  # see BboxFeatureExtractor / bbox_sampling_axes
 
         self.strides = FPN_STRIDES
 
@@ -235,16 +239,14 @@ class BboxFeatureExtractorCoreML(nn.Module):
         G = self.grid_size
         G2 = G * G
 
-        # Sample every FPN level along the bbox x / y axes
-        # (same formula as the main model's _create_axes_batched)
-        x1 = (bboxes[:, 0:1] / img_size) * 2 - 1
-        y1 = (bboxes[:, 1:2] / img_size) * 2 - 1
-        x2 = (bboxes[:, 2:3] / img_size) * 2 - 1
-        y2 = (bboxes[:, 3:4] / img_size) * 2 - 1
-        base = torch.linspace(0, 1, G, device=device).reshape(1, G)
-        axis_x = x1 + base * (x2 - x1)
-        axis_y = y1 + base * (y2 - y1)
-        all_sampled = [separable_bilinear_sample(f, axis_x, axis_y) for f in fpn_feats]
+        # Sample every FPN level along the bbox x / y axes (same mapping as the main model)
+        all_sampled = [
+            separable_bilinear_sample(
+                f, *bbox_sampling_axes(bboxes, img_size, f.shape[-2], f.shape[-1], G,
+                                       self.sampling)
+            )
+            for f in fpn_feats
+        ]
 
         stacked = torch.stack(all_sampled, dim=1)  # (N, 3, C, G, G)
 

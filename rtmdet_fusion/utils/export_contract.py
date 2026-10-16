@@ -8,7 +8,7 @@ order breaks applications and is a MAJOR change.
 from typing import Dict
 
 from configs.default import (
-    NUM_BINS, NUM_BINS_BODY, BIN_MARGIN, BODY_BBOX_RANGE_SCALE,
+    NUM_BINS, NUM_BINS_BODY, BIN_MARGIN, BODY_BBOX_RANGE_SCALE, FEATURE_SAMPLING_LEGACY,
 )
 
 
@@ -92,4 +92,6 @@ def v2_head_config(checkpoint: dict) -> Dict:
         'num_bins_body': cfg.get('num_bins_body', NUM_BINS_BODY),
         'bin_margin': cfg.get('bin_margin', BIN_MARGIN),
         'body_bbox_range_scale': cfg.get('body_bbox_range_scale', BODY_BBOX_RANGE_SCALE),
+        # Checkpoints without the entry (v2.0.0) were trained with the legacy sampling
+        'feature_sampling': cfg.get('feature_sampling', FEATURE_SAMPLING_LEGACY),
     }

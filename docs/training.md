@@ -114,7 +114,8 @@ uv run python tools/train.py --amp --resume best --mask-weight 4.0 --epochs 50
     'raw_state_dicts': ...,                    # EMA 有効時の学習中の生の重み（再開用）
     'optimizer_state_dict': ..., 'epoch': ..., 'best_val_loss': ...,
     'train_metrics': ..., 'val_metrics': ...,
-    'config': {'num_keypoints': 11, 'num_bins': 64, 'num_body_keypoints': 31, 'num_bins_body': 128,
+    'config': {'feature_sampling': 'stride',  # bbox 特徴の標本化方式（v2.0.0 は記録なし = legacy）
+               'num_keypoints': 11, 'num_bins': 64, 'num_body_keypoints': 31, 'num_bins_body': 128,
                'bin_margin': 0.125, 'body_bbox_range_scale': 2.0, 'max_instances': 5, 'img_size': 640,
                ..., 'train_args': {...}},
 }

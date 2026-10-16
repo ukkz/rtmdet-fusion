@@ -108,6 +108,9 @@ onnx2tf → TensorFlow.js. When touching code used by the exporters, keep these 
 - After changing the export path, verify numerically through ONNX, CoreML and tfjs against
   PyTorch, not only with `onnx_exporter.py --verify`.
 - `fusion_model_coreml.py` mirrors the main modules for CoreML; keep both in sync.
+- The bbox feature sampling follows `checkpoint['config']['feature_sampling']` (`bbox_sampling_axes`).
+  v2.0.0 checkpoints record none and must keep working with the `legacy` mapping in training,
+  the viewer and both exporters.
 
 ## Change checklist
 

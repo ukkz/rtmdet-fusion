@@ -114,7 +114,7 @@ from configs.default import (
 )
 
 from rtmdet_fusion.models.fusion_model import (
-    BboxFeatureExtractor, DCCHead, HeadBboxHead, MaskDepthBranch
+    BboxFeatureExtractor, DCCHead, HeadBboxHead, MaskDepthBranch, feature_sampling_of
 )
 from rtmdet_fusion.models.encoders import HybridEncoder
 from rtmdet_fusion.models.losses import (
@@ -2264,6 +2264,10 @@ def resume_variant_context(ctx: VariantContext, ckpt: dict, resume_path: Path) -
             f"Only checkpoints of the current model generation can be resumed."
         )
 
+    # Keep the feature sampling the checkpoint was trained with (v2.0.0 checkpoints: legacy)
+    model.bbox_feat_extractor.sampling = feature_sampling_of(ckpt.get('config', {}))
+    print(f"  [{ctx.name}] Feature sampling: {model.bbox_feat_extractor.sampling}")
+
     # Training weights: raw weights if present, otherwise the main slots
     for n in names:
         if n in new_modules:
@@ -2334,6 +2338,7 @@ def restore_lr_schedule(ctx: VariantContext, start_epoch: int, warmup_epochs: in
 
 
 def checkpoint_config(
+    ctx: VariantContext,
     args,
     jitter_prob: float,
     jitter_shift: float,
@@ -2342,6 +2347,7 @@ def checkpoint_config(
 ) -> dict:
     """The 'config' entry of a checkpoint: model hyperparameters and all CLI arguments."""
     return {
+        'feature_sampling': ctx.model.bbox_feat_extractor.sampling,
         'num_keypoints': NUM_KEYPOINTS,
         'num_bins': NUM_BINS,
         'num_body_keypoints': NUM_BODY_KEYPOINTS,
@@ -2392,7 +2398,8 @@ def save_checkpoint(
                                  'state': ctx.plateau_scheduler.state_dict()},
         'train_metrics': train_metrics,
         'val_metrics': val_metrics,
-        'config': checkpoint_config(args, jitter_prob, jitter_shift, jitter_scale, use_multiscale),
+        'config': checkpoint_config(ctx, args, jitter_prob, jitter_shift, jitter_scale,
+                                    use_multiscale),
     }
     for name, sd in zip(module_names, main_sds):
         checkpoint_data[f'{name}_state_dict'] = sd
@@ -2824,7 +2831,8 @@ def main():
             'best_val_loss': ctx.best_val_loss,
             'scheduler_state_dict': {'type': ctx.scheduler_type,
                                      'state': ctx.plateau_scheduler.state_dict()},
-            'config': checkpoint_config(args, jitter_prob, jitter_shift, jitter_scale, use_multiscale),
+            'config': checkpoint_config(ctx, args, jitter_prob, jitter_shift, jitter_scale,
+                                        use_multiscale),
         }
         for name, sd in zip(module_names, main_sds):
             final_ckpt[f'{name}_state_dict'] = sd
