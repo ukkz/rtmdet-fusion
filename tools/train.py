@@ -1452,7 +1452,7 @@ def train_one_epoch_dual(
 
     for ctx in contexts:
         m = metrics[ctx.name]
-        # Loss components are averaged per batch, as in validation
+        # Loss components are averaged per batch (validation averages per image)
         n_batches = max(m['num_batches'], 1)
         results[ctx.name] = {
             'loss': m['total_loss'] / n_batches,
@@ -1529,7 +1529,9 @@ def validate_dual(
             'total_matched': 0,
             'total_error_unified': 0.0,
             'total_confidence': 0.0,
-            'num_batches': 0,
+            'num_images': 0,          # images with a matched instance (loss average)
+            'num_head_images': 0,     # ... with supervised head keypoints (error / confidence)
+            'num_body_images': 0,     # ... with supervised body keypoints (body error)
             # Body
             'total_body_bbox_loss': 0.0,
             'total_body_simcc_loss': 0.0,
@@ -1827,9 +1829,11 @@ def validate_dual(
                             body_out['visibility_logits'], body_vis_sel
                         )
                     if ctx.in_frame_loss_fn is not None:
-                        loss = loss + ctx.in_frame_loss_fn(
+                        body_in_frame_loss = ctx.in_frame_loss_fn(
                             body_out['in_frame_logits'], body_vis_sel
                         )
+                        in_frame_loss = in_frame_loss + body_in_frame_loss
+                        loss = loss + body_in_frame_loss
 
                     body_err = torch.sqrt(
                         ((body_pred_coords - body_gt_kpts_sel) ** 2).sum(dim=-1)
@@ -1882,29 +1886,31 @@ def validate_dual(
                     m['total_body_coord_loss'] += body_coord_loss.item()
                     if body_error_unified is not None:
                         m['total_body_error_unified'] += body_error_unified
+                        m['num_body_images'] += 1
                     m['total_body_matched'] += n_body
                 if ctx.mask_loss_fn is not None:
                     m['total_mask_loss'] += mask_loss_v.item()
                     m['total_depth_loss'] += depth_loss_v.item()
                 m['total_matched'] += len(valid_gt_indices)
-                m['num_batches'] += 1
+                m['num_images'] += 1
 
                 error_unified = torch.sqrt(
                     ((pred_rel_coords - pred_bbox_kpts) ** 2).sum(dim=-1)
                 )
                 error_unified_masked = error_unified * matched_target_weight
-                if matched_target_weight.sum() > 0:
-                    m['total_error_unified'] += (error_unified_masked.sum() / matched_target_weight.sum()).item()
-
                 conf_masked = confidences * matched_target_weight
                 if matched_target_weight.sum() > 0:
+                    m['total_error_unified'] += (error_unified_masked.sum() / matched_target_weight.sum()).item()
                     m['total_confidence'] += (conf_masked.sum() / matched_target_weight.sum()).item()
+                    m['num_head_images'] += 1
 
     # Results
     results = {}
     for ctx in contexts:
         m = metrics[ctx.name]
-        n_batches = max(m['num_batches'], 1)
+        n_batches = max(m['num_images'], 1)  # per-image averages
+        n_head_images = max(m['num_head_images'], 1)
+        n_body_images = max(m['num_body_images'], 1)
         results[ctx.name] = {
             'loss': m['total_loss'] / n_batches,
             'head_bbox_loss': m['total_head_bbox_loss'] / n_batches,
@@ -1921,14 +1927,14 @@ def validate_dual(
             'body_simcc_loss': m['total_body_simcc_loss'] / n_batches,
             'body_bone_loss': m['total_body_bone_loss'] / n_batches,
             'body_coord_loss': m['total_body_coord_loss'] / n_batches,
-            'body_error_unified': m['total_body_error_unified'] / n_batches,
+            'body_error_unified': m['total_body_error_unified'] / n_body_images,
             'in_frame_loss': m['total_in_frame_loss'] / n_batches,
             'body_matched': m['total_body_matched'],
             'mask_loss': m['total_mask_loss'] / n_batches,
             'depth_loss': m['total_depth_loss'] / n_batches,
             'matched': m['total_matched'],
-            'error_unified': m['total_error_unified'] / n_batches,
-            'confidence': m['total_confidence'] / n_batches,
+            'error_unified': m['total_error_unified'] / n_head_images,
+            'confidence': m['total_confidence'] / n_head_images,
         }
 
     return results
