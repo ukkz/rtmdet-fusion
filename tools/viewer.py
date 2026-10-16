@@ -10,8 +10,8 @@ Keypoint coordinates (relative to the reference bbox):
 - z: vertical position in the bbox [0, 1] (image Y flipped, up is positive)
 
 Usage:
-    uv run python tools/viewer.py --model work_dirs/<run>/best_model_s.pth
-    uv run python tools/viewer.py --model work_dirs/<run>/best_model_s.pth --image path/to/image.jpg
+    uv run python tools/viewer.py --model work_dirs/<version>/best_model_s.pth
+    uv run python tools/viewer.py --model work_dirs/<version>/best_model_s.pth --image path/to/image.jpg
 
 Keys:
     O        open an image

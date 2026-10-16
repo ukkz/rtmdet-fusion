@@ -28,7 +28,9 @@ RTMDET_INS_TINY_WEIGHTS = PROJECT_ROOT / "weights" / "rtmdet-ins_tiny.pth"
 RTMDET_INS_S_WEIGHTS = PROJECT_ROOT / "weights" / "rtmdet-ins_s.pth"
 
 # Working directory (checkpoints, TensorBoard logs)
-WORK_DIR = PROJECT_ROOT / "work_dirs" / "main"
+# Root of the training outputs; tools/train.py writes each run to WORK_DIR / <code version>
+# (git describe, e.g. work_dirs/v2.1.0) unless --work-dir is given
+WORK_DIR = PROJECT_ROOT / "work_dirs"
 
 # ==================================================
 # Head keypoints (11 points)

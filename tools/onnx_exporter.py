@@ -12,13 +12,13 @@ Output layout:
 
 Usage:
     # All multi-scale sizes (256, 320, 416, 512, 640)
-    uv run python tools/onnx_exporter.py --checkpoint work_dirs/main/best_model_s.pth
+    uv run python tools/onnx_exporter.py --checkpoint work_dirs/v2.1.0/best_model_s.pth
 
     # A single size
-    uv run python tools/onnx_exporter.py --checkpoint work_dirs/main/best_model_s.pth --img-size 416
+    uv run python tools/onnx_exporter.py --checkpoint work_dirs/v2.1.0/best_model_s.pth --img-size 416
 
     # With verification against PyTorch
-    uv run python tools/onnx_exporter.py --checkpoint work_dirs/main/best_model_s.pth --verify
+    uv run python tools/onnx_exporter.py --checkpoint work_dirs/v2.1.0/best_model_s.pth --verify
 """
 
 import argparse

@@ -24,11 +24,11 @@ Tested environment:
 Usage:
     # macOS (default deployment target: macOS15)
     uv run python tools/coreml_exporter_native.py \\
-        --checkpoint work_dirs/main/best_model_s.pth
+        --checkpoint work_dirs/v2.1.0/best_model_s.pth
 
     # iOS
     uv run python tools/coreml_exporter_native.py \\
-        --checkpoint work_dirs/main/best_model_tiny.pth --img-size 256 \\
+        --checkpoint work_dirs/v2.1.0/best_model_tiny.pth --img-size 256 \\
         --deployment-target iOS17
 """
 

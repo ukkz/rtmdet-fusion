@@ -15,6 +15,8 @@ uv run python tools/train.py ...
 
 - `train.py`は、作業ツリーがクリーンかつHEADがちょうどtagの位置でなければ起動しません
 - 試行錯誤の学習には`--experiment`を付けてください。チェックポイントには`v2.0.0-3-gabc1234`のような値が入り、リリースではないことが分かります
+- 出力先は`--work-dir`を省略すると`work_dirs/<学習コードの版>/`になります（例: `work_dirs/v2.1.0/`、`--experiment`なら`work_dirs/v2.0.0-3-gabc1234/`）。
+  版ごとにディレクトリが分かれるので、出力先を指定したり整理したりする必要はありません
 - 採用したらtagをpushしてください。採用しなければtagとチェックポイントを消し、同じ番号を使い直して構いません
 - 書き出した成果物はチェックポイントの版を引き継ぎます（[export.md](export.md)）
 
@@ -36,8 +38,11 @@ uv run python tools/train.py --amp --resume best --mask-weight 4.0 --epochs 50
   `plateau`ではチェックポイントに保存したスケジューラの状態と学習率から続けます（stage 2では状態をリセットし、学習率だけ引き継ぎます）
 - stage 2ではoptimizerの状態を引き継がず、EMAは既存モジュールの分をチェックポイントから引き継ぎます（追加したブランチは初期の重みから始まります）。最良val lossもリセットされます
   （マスク・深度の損失が加わり、stage 1の値と比べられないため）
-- stage 2の最初のエポックで同じ`--work-dir`の`best_model_{variant}.pth`が上書きされます。stage 1の結果を残したい場合は、
-  事前に別名でコピーしておいてください
+- 同じ版のまま学習すれば、stage 2も同じ`work_dirs/<版>/`のstage 1のチェックポイントから再開します（`--work-dir`は不要です）。
+  `--experiment`の学習で、stage 1とstage 2の間にコードを変えると版の文字列が変わるので、その場合は`--work-dir`で指定してください
+- stage 2の開始時に、stage 1の`best_model_{variant}.pth`・`final_model_{variant}.pth`を`stage1_best_model_{variant}.pth`・
+  `stage1_final_model_{variant}.pth`へ自動で複製します（stage 2はbest / finalを上書きするため）。stage 1からstage 2をやり直すときは
+  `--resume stage1_best`で始められます
 - 書き出しにはstage 2のチェックポイントが必要です（stage 1のものはエクスポータが拒否します）。viewerはstage 1のものも表示できます
 - 既定ではtinyとsを同時に学習します（`--variant both`）。片方だけなら`--variant tiny` / `--variant s`
 
@@ -48,7 +53,7 @@ uv run python tools/train.py --amp --resume best --mask-weight 4.0 --epochs 50
 | `--epochs` / `--batch-size` / `--lr` | 100 / 48 / 5e-4 | 総エポック数・バッチサイズ・学習率（AdamW、weight decay 0.05） |
 | `--variant` | `both` | `tiny` / `s` / `both` |
 | `--amp` | off | 混合精度（CUDAのみ） |
-| `--work-dir` | `work_dirs/main` | チェックポイントとTensorBoardログの出力先 |
+| `--work-dir` | `work_dirs/<版>` | チェックポイントとTensorBoardログの出力先（版は`git describe`の値。§1） |
 | `--resume` | - | `best` / `final` / 任意名（`{name}_model_{variant}.pth`を読みます） |
 | `--warmup-epochs` / `--scheduler` / `--min-lr` | 2 / `cosine` / 1e-5 | 学習率ウォームアップと減衰（`plateau`も選べます） |
 | `--no-multiscale` | off | マルチスケール学習（256〜640）を止め`--img-size`（既定640）固定にします |
@@ -62,7 +67,7 @@ uv run python tools/train.py --amp --resume best --mask-weight 4.0 --epochs 50
 
 全オプションは`uv run python tools/train.py --help`で確認できます。指定した引数はすべてチェックポイントの`config['train_args']`に残ります。
 
-学習の様子はTensorBoardで見られます: `uv run tensorboard --logdir work_dirs/main/tensorboard`
+学習の様子はTensorBoardで見られます: `uv run tensorboard --logdir work_dirs/v2.1.0/tensorboard`
 
 ## 4. 損失
 
@@ -99,7 +104,8 @@ uv run python tools/train.py --amp --resume best --mask-weight 4.0 --epochs 50
 
 ## 6. チェックポイント
 
-`--work-dir`に`best_model_{variant}.pth`（val loss最良）と`final_model_{variant}.pth`を保存します。
+`work_dirs/<版>/`（または`--work-dir`）に`best_model_{variant}.pth`（val loss最良）と`final_model_{variant}.pth`を保存します。
+stage 2を始めると、stage 1のものは`stage1_best_model_{variant}.pth`・`stage1_final_model_{variant}.pth`として残ります。
 
 ```python
 {
@@ -126,8 +132,8 @@ RTMDet-Insの重みはチェックポイントに含めません（`weights/`か
 ## 7. 推論の確認（viewer）
 
 ```bash
-uv run python tools/viewer.py --model work_dirs/main/best_model_s.pth            # GUI で画像を選ぶ
-uv run python tools/viewer.py --model work_dirs/main/best_model_s.pth --image path/to/image.jpg
+uv run python tools/viewer.py --model work_dirs/v2.1.0/best_model_s.pth            # GUI で画像を選ぶ
+uv run python tools/viewer.py --model work_dirs/v2.1.0/best_model_s.pth --image path/to/image.jpg
 ```
 
 PyQt5が必要です。表示モード（頭部・全身・部位マスク・深度など）はキー操作で切り替えます（画面のヘルプを参照してください）。

@@ -21,6 +21,10 @@ checkpoint's epoch + 1):
     # Stage 2: fine-tune the best stage-1 checkpoint with the mask/depth branch
     uv run python tools/train.py --resume best --mask-weight 4.0 --epochs <total> --amp
 
+Outputs go to work_dirs/<code version>/ (e.g. work_dirs/v2.1.0/) unless --work-dir is given, so
+stage 2 of the same version finds the stage-1 checkpoints there. When stage 2 starts, the
+stage-1 best/final checkpoints are copied to stage1_{best,final}_model_{variant}.pth first.
+
 Main options:
     --variant tiny|s|both   RTMDet-Ins variant(s); 'both' trains the two models on the same batches
     --resume best|final     continue from {work_dir}/{name}_model_{variant}.pth
@@ -34,6 +38,7 @@ unless --experiment is given.
 
 import argparse
 import os
+import shutil
 import random
 import sys
 from dataclasses import dataclass
@@ -149,6 +154,8 @@ class VariantContext:
     # LR schedule state read from the resume checkpoint (applied by restore_lr_schedule)
     resume_lr: Optional[float] = None
     resume_scheduler_state: Optional[dict] = None
+    # Resumed from a stage-1 checkpoint into stage 2 (the mask/depth branch is created fresh)
+    stage2_start: bool = False
 
     # Head losses (None = disabled; kept per variant)
     simcc_loss_fn: nn.Module = None
@@ -2286,6 +2293,7 @@ def resume_variant_context(ctx: VariantContext, ckpt: dict, resume_path: Path) -
         print(f"  [{ctx.name}] Resumed EMA state")
 
     if new_modules:
+        ctx.stage2_start = True
         ctx.best_val_loss = float('inf')
         print(f"  [{ctx.name}] {resume_path.name} has no {new_modules}: created fresh "
               f"(stage 2). Optimizer state starts fresh and best_val_loss is reset.")
@@ -2428,7 +2436,9 @@ def main():
     parser.add_argument('--batch-size', type=int, default=DEFAULT_BATCH_SIZE)
     parser.add_argument('--lr', type=float, default=DEFAULT_LR)
     parser.add_argument('--img-size', type=int, default=IMG_SIZE)
-    parser.add_argument('--work-dir', type=str, default=str(WORK_DIR))
+    parser.add_argument('--work-dir', type=str, default=None,
+                        help='Output directory (default: work_dirs/<code version>, the git describe '
+                             'of the training code, e.g. work_dirs/v2.1.0)')
     parser.add_argument('--variant', type=str, default='both', choices=['tiny', 's', 'both'],
                         help='RTMDet-Ins variant (tiny/s/both). "both" trains the two variants '
                              'on the same batches')
@@ -2555,8 +2565,13 @@ def main():
     print(f"  LR warmup: {args.warmup_epochs} epochs, scheduler: {args.scheduler} "
           f"(min_lr={args.min_lr:.0e})")
 
+    # One directory per code version: a release run of vX.Y.Z goes to work_dirs/vX.Y.Z, so its
+    # stage 2 resumes from there without options
+    if args.work_dir is None:
+        args.work_dir = str(WORK_DIR / (CODE_VERSION or 'unversioned'))
     work_dir = Path(args.work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Work dir: {work_dir}")
 
     # Start epoch
     start_epoch = 0
@@ -2590,6 +2605,20 @@ def main():
             warmup_epochs=args.warmup_epochs
         )
         contexts.append(ctx)
+
+    # Stage 2 overwrites best/final in the same work dir: keep the stage-1 checkpoints (a later
+    # stage 2 with other settings can start from them without repeating stage 1)
+    for ctx in contexts:
+        if not ctx.stage2_start:
+            continue
+        for kind in ('best', 'final'):
+            src = work_dir / f'{kind}_model_{ctx.name}.pth'
+            dst = work_dir / f'stage1_{kind}_model_{ctx.name}.pth'
+            # Only stage-1 files (a stage-2 best from an earlier attempt must not replace it)
+            if src.exists() and 'mask_depth_branch_state_dict' not in torch.load(
+                    src, map_location='cpu', weights_only=False):
+                shutil.copy2(src, dst)
+                print(f"  [{ctx.name}] Kept the stage-1 checkpoint: {dst}")
 
     val_img_dir = args.val_img_dir if args.val_img_dir else args.img_dir
 

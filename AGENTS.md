@@ -69,6 +69,8 @@ version tag:
 2. Train. `tools/train.py` embeds `git describe --tags --dirty` into the checkpoint and refuses
    to start unless it is exactly a release tag. Experimental runs must pass `--experiment`;
    their checkpoints carry the describe string (e.g. `v2.0.0-3-gabc1234`) and are not releases.
+   Without `--work-dir` the outputs go to `work_dirs/<describe>/` (e.g. `work_dirs/v2.1.0/`), and stage 2
+   of the same version resumes from there; the stage-1 checkpoints are kept as `stage1_*_model_*.pth`.
 3. If the model is adopted, push the tag (`git push origin vX.Y.Z`). If it is rejected, delete
    the local tag and its checkpoints; the number can be reused. Never push a tag before adoption.
 
@@ -77,7 +79,7 @@ export time):
 
 | Artifact | Version location | File name |
 |----------|------------------|-----------|
-| pth | top-level `'version'` key | (none; distinguished by work dir) |
+| pth | top-level `'version'` key | `work_dirs/{version}/{best,final}_model_{variant}.pth` (default work dir) |
 | ONNX | `metadata_props['rtmdet_fusion_version']` | `rtmdet_fusion_{variant}_{size}_{version}.onnx` |
 | CoreML | `user_defined_metadata['rtmdet_fusion_version']` | `rtmdet_fusion_coreml_{variant}_{size}_{version}.mlpackage` |
 | tfjs | `model.json` `userDefinedMetadata.rtmdet_fusion_version` | `{variant}_{size}_{version}/` |

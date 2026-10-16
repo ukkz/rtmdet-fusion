@@ -17,7 +17,7 @@
 
 ```bash
 # 解像度を省略すると 256 / 320 / 416 / 512 / 640 をまとめて書き出す
-uv run python tools/onnx_exporter.py --checkpoint work_dirs/main/best_model_s.pth --img-size 640 --verify
+uv run python tools/onnx_exporter.py --checkpoint work_dirs/v2.1.0/best_model_s.pth --img-size 640 --verify
 ```
 
 - 出力先の既定は`onnx_models/`（git管理外。無ければ作ります）です。`--verify`はPyTorchとONNX Runtimeの出力を
@@ -31,10 +31,10 @@ uv run python tools/onnx_exporter.py --checkpoint work_dirs/main/best_model_s.pt
 
 ```bash
 # macOS 向け（既定 target は macOS15）
-uv run python tools/coreml_exporter_native.py --checkpoint work_dirs/main/best_model_s.pth --img-size 640
+uv run python tools/coreml_exporter_native.py --checkpoint work_dirs/v2.1.0/best_model_s.pth --img-size 640
 
 # iOS 向け
-uv run python tools/coreml_exporter_native.py --checkpoint work_dirs/main/best_model_tiny.pth --img-size 256 \
+uv run python tools/coreml_exporter_native.py --checkpoint work_dirs/v2.1.0/best_model_tiny.pth --img-size 256 \
     --deployment-target iOS17
 ```
 
