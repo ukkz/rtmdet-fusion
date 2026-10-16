@@ -56,7 +56,7 @@ uv run python tools/agora/viewer.py
 | `--max-files` | - | splitあたりのpkl数の上限（動作確認用） |
 
 - **`--split`で選んだsplitの出力（画像・深度・JSON）は、実行のたびに消して作り直します**。もう一方のsplitの出力は残ります。選んだsplitのpklが見つからない場合は、何も消さずに止まります
-- 生成中に`q`を押すと（macOS・Linuxでは`q`のあとEnter）、そのsplitの処理済みの分を保存して止まります。`--split both`では次のsplitの処理に進みます
+- 生成中に`q`を押すと、処理中のsplitの処理済みの分を保存して全体を止めます（`--split both`でも残りのsplitは処理せず、その既存の出力も消しません）。標準入力が端末でない場合（パイプやリダイレクト）は`q`での停止は効きません
 - 4Kの全量（`--crops-per-image 10`）でtrain約28万枚・44GB、validation約2万枚・3GBになります
 
 ### 出力

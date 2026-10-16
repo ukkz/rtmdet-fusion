@@ -38,7 +38,7 @@ own licenses):
     weights/smplx/smplx_vert_segmentation.json   SMPL-X vertex part segmentation (Meshcapade)
 Without the SMPL-X assets the part mask and depth teachers are left empty.
 
-Outputs (under data/; the output of the selected splits is cleared first):
+Outputs (under data/; each selected split is cleared right before it is regenerated):
     {split}/images/[N/]<crop>.jpg, <crop>_m.jpg   crops (train keeps the source subfolder N)
     {split}/depth/[N/]<crop>_<k>.png              depth teachers (uint16 millimetres)
     head_keypoints_{split}.json                   COCO-style annotations
@@ -49,7 +49,8 @@ Usage:
     uv run python tools/agora/extracter.py --resolution 720p
     uv run python tools/agora/extracter.py --split train --max-files 3
 
-Press 'q' during extraction to stop safely (processed data is saved).
+Press 'q' during extraction to stop the whole run safely (the processed data of the current
+split is saved and later splits are not processed).
 """
 
 import argparse
@@ -71,6 +72,8 @@ if sys.platform == "win32":
     import msvcrt
 else:
     import select
+    import termios
+    import tty
 
 # Add the script directory to the import path
 _script_dir = Path(__file__).parent
@@ -167,32 +170,48 @@ def log_worker_error(
 def keyboard_listener(stop_event: MPEvent, display_event: threading.Event) -> None:
     """Watch the keyboard and send the stop signal on 'q'
 
+    On macOS / Linux the terminal is switched to cbreak mode while listening, so 'q' works
+    without Enter. Without a terminal on stdin (pipe, /dev/null) the listener stays off.
+
     Args:
         stop_event: multiprocessing Event that stops the workers
         display_event: thread Event that ends this listener
     """
-    print("\n[INFO] Press 'q' to stop safely (processed data is saved)")
-
-    while not display_event.is_set():
-        try:
-            if sys.platform == "win32":
+    if sys.platform == "win32":
+        print("\n[INFO] Press 'q' to stop safely (processed data is saved)")
+        while not display_event.is_set():
+            try:
                 if msvcrt.kbhit():
                     key = msvcrt.getch().decode("utf-8", errors="ignore").lower()
                     if key == "q":
                         print("\n[STOP] 'q' pressed. Stopping workers...")
                         stop_event.set()
                         return
-                time.sleep(0.1)
-            else:
-                # Unix/Linux/Mac
-                if select.select([sys.stdin], [], [], 0.1)[0]:
-                    key = sys.stdin.read(1).lower()
-                    if key == "q":
-                        print("\n[STOP] 'q' pressed. Stopping workers...")
-                        stop_event.set()
-                        return
-        except Exception:
-            pass  # ignore keyboard input errors
+            except Exception:
+                pass  # ignore keyboard input errors
+            time.sleep(0.1)
+        return
+
+    # macOS / Linux
+    if not sys.stdin.isatty():
+        print("\n[INFO] stdin is not a terminal: stopping with 'q' is disabled")
+        return
+    fd = sys.stdin.fileno()
+    old_attrs = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        print("\n[INFO] Press 'q' to stop safely (processed data is saved)")
+        while not display_event.is_set():
+            if select.select([sys.stdin], [], [], 0.1)[0]:
+                key = sys.stdin.read(1)
+                if not key:  # EOF
+                    return
+                if key.lower() == "q":
+                    print("\n[STOP] 'q' pressed. Stopping workers...")
+                    stop_event.set()
+                    return
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
 
 
 # Per-worker RTMDet-Ins instance
@@ -853,12 +872,15 @@ def main():
     for cs in valid_sizes:
         print(f"  - {cs['width']}x{cs['height']}")
 
-    # Reset the output of the selected splits (the other split is kept)
-    print("\nResetting the output directory...")
     if not OUTPUT_DIR.exists():
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        print(f"  created: {OUTPUT_DIR}")
+        print(f"\ncreated: {OUTPUT_DIR}")
+
     for split in splits:
+        print(f"\nProcessing: {split}")
+
+        # Reset the output of this split only, right before it is regenerated (the other split,
+        # and a later split when the run is stopped with 'q', keep their data)
         for path in [CROPPED_DIR / split, OUTPUT_DIR / f"head_keypoints_{split}.json",
                      OUTPUT_DIR / "partial" / split]:
             if path.is_dir():
@@ -868,9 +890,6 @@ def main():
             else:
                 continue
             print(f"  removed: {path}")
-
-    for split in splits:
-        print(f"\nProcessing: {split}")
 
         pkl_files = split_pkl_files[split]
         print(f"  pkl files: {len(pkl_files)}")
@@ -979,6 +998,12 @@ def main():
         print(f"  images: {n_images}, annotations: {n_annotations}")
         if total_ignore > 0:
             print(f"  ignore=True (head bbox too small or head out of frame): {total_ignore}")
+
+        if any_worker_stopped:
+            remaining = splits[splits.index(split) + 1:]
+            if remaining:
+                print(f"\n[STOP] Not processing {', '.join(remaining)} (existing data kept)")
+            break
 
     print("\n" + "=" * 60)
     print("Done")
