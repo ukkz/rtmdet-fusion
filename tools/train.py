@@ -2094,6 +2094,9 @@ def create_variant_context(
         label_smoothing=0.0
     ).to(device)
 
+    # In-frame prediction (shared by head and body; the head term stays with --body-weight 0)
+    in_frame_loss_fn = InFrameBCELoss(loss_weight=0.5).to(device)
+
     # ==================================================
     # Body losses (--body-weight scales the whole group; 0 disables it)
     # ==================================================
@@ -2104,7 +2107,6 @@ def create_variant_context(
     body_bone_loss_fn = None
     body_coord_loss_fn = None
     body_visibility_loss_fn = None
-    in_frame_loss_fn = None
     body_bone_direction_loss_fn = None
     body_image_coord_loss_fn = None
     body_consistency_loss_fn = None
@@ -2130,8 +2132,6 @@ def create_variant_context(
         body_visibility_loss_fn = VisibilityBCELoss(
             loss_weight=0.5 * body_scale, label_smoothing=0.0
         ).to(device)
-        # In-frame prediction (shared by head and body)
-        in_frame_loss_fn = InFrameBCELoss(loss_weight=0.5).to(device)
 
         # Same parallel-shift countermeasures as the head, with the same weights
         if args.bone_direction_weight > 0:

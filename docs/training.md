@@ -54,7 +54,7 @@ uv run python tools/train.py --amp --resume best --mask-weight 4.0 --epochs 50
 | `--no-multiscale` | off | マルチスケール学習（256〜640）を止め`--img-size`（既定640）固定にします |
 | `--jitter-prob` / `--jitter-shift` / `--jitter-scale` / `--no-jitter` | 0.8 / 0.25 / 0.15 | 参照bboxの摂動（§5） |
 | `--no-ema` / `--ema-decay` | on / 0.9998 | 重みの指数移動平均 |
-| `--body-weight` | 1.0 | 全身系の損失全体の倍率（0で全身系と、頭部を含むin_frameの損失を学習しません） |
+| `--body-weight` | 1.0 | 全身系の損失全体の倍率（0で全身系の損失を学習しません。頭部のin_frameは残ります） |
 | `--mask-weight` / `--depth-weight` | 0 / 5.0 | マスク・深度の損失の重み（`--mask-weight` > 0でブランチを作ります） |
 | `--consistency-weight` / `--image-coord-weight` / `--bone-direction-weight` | 5 / 10 / 5 | 位置ずれ対策の損失（0で無効） |
 | `--train-ann` / `--val-ann` / `--img-dir` / `--val-img-dir` | `data/`配下 | データの場所 |
