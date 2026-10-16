@@ -1171,7 +1171,7 @@ def train_one_epoch_dual(
                     # instances and enforce agreement in image coordinates (needs pred_coords).
                     consistency_loss = torch.tensor(0.0, device=device)
                     if ctx.consistency_loss_fn is not None and pred_coords is not None:
-                        jittered_bboxes_b, _, _ = apply_bbox_jittering(
+                        jittered_bboxes_b, _, jitter_valid_b = apply_bbox_jittering(
                             selected_bboxes, selected_gt_kpts, cat_gt_vis,
                             max_shift_ratio=jitter_shift,
                             max_scale_ratio=jitter_scale,
@@ -1186,10 +1186,11 @@ def train_one_epoch_dual(
                             dcc_output_b['heatmap_y'],
                             dcc_output_b['heatmap_z'],
                         )
+                        # Only points inside the margin-bin range of both jitters
                         consistency_loss = ctx.consistency_loss_fn(
                             pred_coords, pred_coords_b,
                             jittered_bboxes, jittered_bboxes_b,
-                            cat_target_weights,
+                            cat_target_weights * jitter_valid_b.float(),
                         )
                         loss = loss + consistency_loss
 
@@ -1310,7 +1311,7 @@ def train_one_epoch_dual(
                                 )
                             if ctx.body_consistency_loss_fn is not None:
                                 # Second jitter pass, agreement in image coordinates
-                                body_jbboxes_b, _, _ = apply_bbox_jittering(
+                                body_jbboxes_b, _, body_jvalid_b = apply_bbox_jittering(
                                     body_selected, body_gt_kpts_sel, cat_gt_body_vis[bsel],
                                     max_shift_ratio=jitter_shift,
                                     max_scale_ratio=jitter_scale,
@@ -1328,7 +1329,8 @@ def train_one_epoch_dual(
                                 )
                                 loss = loss + ctx.body_consistency_loss_fn(
                                     body_pred_coords, body_pred_coords_b,
-                                    body_jbboxes, body_jbboxes_b, body_tw,
+                                    body_jbboxes, body_jbboxes_b,
+                                    body_tw * body_jvalid_b.float(),
                                 )
 
                         if ctx.body_visibility_loss_fn is not None:

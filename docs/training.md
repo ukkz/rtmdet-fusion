@@ -77,7 +77,7 @@ uv run python tools/train.py --amp --resume best --mask-weight 4.0 --epochs 50
 | 骨方向（`BoneDirectionLoss`） | 5.0 | 骨の向き（コサイン類似度）。点群全体の平行なずれを抑えます |
 | 座標L2（`CoordL2Loss`） | 15.0 | 参照bbox相対座標の直接回帰（SimCCの崩壊を防ぎます） |
 | 画像座標L2（`ImageCoordL2Loss`） | 10.0 | 参照bboxの大きさで画像座標に戻したx / zのL2（予測と正解に同じ参照bboxを使います） |
-| jitter一貫性（`BboxJitterConsistencyLoss`） | 5.0 | 摂動の異なる2つの参照bboxから得た画像座標を一致させます |
+| jitter一貫性（`BboxJitterConsistencyLoss`） | 5.0 | 摂動の異なる2つの参照bboxから得た画像座標を一致させます（どちらかの参照bboxで[-0.125, 1.125]を外れる点は除きます） |
 | visibility（`VisibilityBCELoss`） | 0.5 | 遮蔽されていないか |
 | in_frame（`InFrameBCELoss`） | 0.5 | 画面内か |
 | マスク（`MaskBCEDiceLoss`） | 4.0（stage 2） | 部位マスク7chのBCE + Dice（教師が無いチャネルは除外） |
