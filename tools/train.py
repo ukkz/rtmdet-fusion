@@ -295,7 +295,7 @@ class RTMDetFusionForTraining(nn.Module):
         ins_bboxes: torch.Tensor,
         priors: torch.Tensor,
         valid_mask: torch.Tensor,
-        img_size: int = IMG_SIZE,
+        img_size: int,
         batch_indices: Optional[torch.Tensor] = None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Predict head bboxes from Ins bboxes (batched)."""
@@ -312,7 +312,7 @@ class RTMDetFusionForTraining(nn.Module):
         bboxes: torch.Tensor,
         priors: torch.Tensor,
         valid_mask: torch.Tensor,
-        img_size: int = IMG_SIZE,
+        img_size: int,
         batch_indices: Optional[torch.Tensor] = None
     ) -> Dict[str, torch.Tensor]:
         """Predict head keypoints inside the given head bboxes (batched)."""
@@ -328,7 +328,7 @@ class RTMDetFusionForTraining(nn.Module):
         bboxes: torch.Tensor,
         priors: torch.Tensor,
         valid_mask: torch.Tensor,
-        img_size: int = IMG_SIZE,
+        img_size: int,
         batch_indices: Optional[torch.Tensor] = None
     ) -> Dict[str, torch.Tensor]:
         """Predict body keypoints inside the given body reference bboxes (batched)."""
@@ -1563,6 +1563,8 @@ def validate_dual(
         gt_depth_valid_list = batch.get('gt_depth_valid', _none_list)
 
         B = images.shape[0]
+        # Feature sampling maps bboxes through the actual input resolution (--img-size)
+        img_size = images.shape[-1]
 
         batch_data_samples = []
         for i in range(B):
@@ -1669,7 +1671,7 @@ def validate_dual(
                 single_hybrid_feats = [f[b:b+1] for f in hybrid_feats]
 
                 pred_head_bboxes, grid_features_ins = model.forward_head_bbox(
-                    single_hybrid_feats, matched_ins_bboxes, matched_priors, valid_mask, IMG_SIZE
+                    single_hybrid_feats, matched_ins_bboxes, matched_priors, valid_mask, img_size
                 )
 
                 head_bbox_loss = torch.tensor(0.0, device=device)
@@ -1698,7 +1700,7 @@ def validate_dual(
                 matched_target_weight = matched_target_weight * recompute_valid.float()
 
                 dcc_output = model.forward_dcc(
-                    single_hybrid_feats, pred_head_bboxes_expanded, matched_priors, valid_mask, IMG_SIZE
+                    single_hybrid_feats, pred_head_bboxes_expanded, matched_priors, valid_mask, img_size
                 )
 
                 heatmap_x = dcc_output['heatmap_x']
@@ -1791,7 +1793,7 @@ def validate_dual(
 
                     body_out = model.forward_body_kpt(
                         single_hybrid_feats, pred_body_expanded,
-                        matched_priors[bsel], valid_mask[bsel], IMG_SIZE
+                        matched_priors[bsel], valid_mask[bsel], img_size
                     )
 
                     b_tx, b_ty, b_tz = model.body_kpt_head.generate_target(
