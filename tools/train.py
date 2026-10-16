@@ -146,6 +146,9 @@ class VariantContext:
     scheduler_type: str = 'cosine'
     scaler: torch.amp.GradScaler = None
     best_val_loss: float = float('inf')
+    # LR schedule state read from the resume checkpoint (applied by restore_lr_schedule)
+    resume_lr: Optional[float] = None
+    resume_scheduler_state: Optional[dict] = None
 
     # Head losses (None = disabled; kept per variant)
     simcc_loss_fn: nn.Module = None
@@ -2267,7 +2270,45 @@ def resume_variant_context(ctx: VariantContext, ckpt: dict, resume_path: Path) -
             print(f"  [{ctx.name}] Warning: Could not load optimizer: {e}")
         ctx.best_val_loss = ckpt.get('best_val_loss', float('inf'))
 
+    # The plateau scheduler continues from the checkpoint's LR and state. Its state tracks the
+    # val loss, so like best_val_loss it is not carried into stage 2.
+    try:
+        ctx.resume_lr = ckpt['optimizer_state_dict']['param_groups'][0]['lr']
+    except (KeyError, IndexError):
+        ctx.resume_lr = None
+    sched = ckpt.get('scheduler_state_dict')
+    if sched is not None and sched.get('type') == ctx.scheduler_type and not new_modules:
+        ctx.resume_scheduler_state = sched['state']
+
     print(f"  [{ctx.name}] Resumed from {resume_path}")
+
+
+def restore_lr_schedule(ctx: VariantContext, start_epoch: int, warmup_epochs: int) -> None:
+    """Bring the LR schedule of a resumed run to start_epoch.
+
+    cosine: the LR is a function of the epoch, so the schedule is replayed from the base LR
+    (a resumed run with a larger --epochs follows the stretched cosine).
+    plateau: the LR depends on the validation history, so after the warmup it continues from the
+    checkpoint's LR and scheduler state; inside the warmup the warmup is replayed.
+    """
+    if ctx.scheduler_type == 'cosine' or start_epoch <= warmup_epochs:
+        for group, base_lr in zip(ctx.optimizer.param_groups, ctx.warmup_scheduler.base_lrs):
+            group['lr'] = base_lr
+        for e in range(start_epoch):
+            if e < warmup_epochs:
+                ctx.warmup_scheduler.step()
+            elif ctx.scheduler_type == 'cosine':
+                ctx.plateau_scheduler.step()
+        return
+
+    if ctx.resume_lr is not None:
+        for group in ctx.optimizer.param_groups:
+            group['lr'] = ctx.resume_lr
+    if ctx.resume_scheduler_state is not None:
+        ctx.plateau_scheduler.load_state_dict(ctx.resume_scheduler_state)
+    else:
+        print(f"  [{ctx.name}] No plateau scheduler state in the checkpoint: continuing from "
+              f"its LR, the patience counter starts over")
 
 
 def checkpoint_config(
@@ -2325,6 +2366,8 @@ def save_checkpoint(
         'epoch': epoch,
         'optimizer_state_dict': ctx.optimizer.state_dict(),
         'best_val_loss': ctx.best_val_loss,
+        'scheduler_state_dict': {'type': ctx.scheduler_type,
+                                 'state': ctx.plateau_scheduler.state_dict()},
         'train_metrics': train_metrics,
         'val_metrics': val_metrics,
         'config': checkpoint_config(args, jitter_prob, jitter_shift, jitter_scale, use_multiscale),
@@ -2579,16 +2622,10 @@ def main():
     writer = SummaryWriter(log_dir=str(log_dir))
     print(f"TensorBoard log dir: {log_dir}")
 
-    # Fast-forward the LR schedulers to start_epoch (cosine applies the decay of the epochs
-    # already done; plateau keeps no per-epoch state)
+    # Bring the LR schedules to start_epoch
     if start_epoch > 0:
         for ctx in contexts:
-            for e in range(start_epoch):
-                if e < args.warmup_epochs:
-                    ctx.warmup_scheduler.step()
-                elif ctx.scheduler_type == 'cosine':
-                    ctx.plateau_scheduler.step()
-        for ctx in contexts:
+            restore_lr_schedule(ctx, start_epoch, args.warmup_epochs)
             print(f"  [{ctx.name}] Resumed LR: {ctx.optimizer.param_groups[0]['lr']:.2e}")
 
     # Bbox jittering
@@ -2763,6 +2800,8 @@ def main():
             'epoch': args.epochs - 1,
             'optimizer_state_dict': ctx.optimizer.state_dict(),
             'best_val_loss': ctx.best_val_loss,
+            'scheduler_state_dict': {'type': ctx.scheduler_type,
+                                     'state': ctx.plateau_scheduler.state_dict()},
             'config': checkpoint_config(args, jitter_prob, jitter_shift, jitter_scale, use_multiscale),
         }
         for name, sd in zip(module_names, main_sds):
