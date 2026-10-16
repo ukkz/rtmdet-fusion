@@ -1996,12 +1996,16 @@ def create_variant_context(
 
     # Lower the RTMDet-Ins score threshold for training-time matching: heavily occluded people
     # far in the back become candidates too, and Hungarian matching acts as the quality gate.
-    # (The exporters and the viewer set their own thresholds.)
+    # The minimum bbox size (pixels at the current resolution) is removed as in the exporters;
+    # otherwise small people are never trained at the low resolutions (at 256 only about a third
+    # of the people matched at 640 survive). (The exporters and the viewer set their own filters.)
     try:
         model.rtmdet.bbox_head.test_cfg.score_thr = TRAIN_INS_SCORE_THR
-        print(f"  [{variant_name}] Train matching score_thr: {TRAIN_INS_SCORE_THR}")
+        model.rtmdet.bbox_head.test_cfg.min_bbox_size = 0
+        print(f"  [{variant_name}] Train matching score_thr: {TRAIN_INS_SCORE_THR}, "
+              f"min_bbox_size: 0")
     except AttributeError:
-        print(f"  [{variant_name}] Warning: could not set train score_thr")
+        print(f"  [{variant_name}] Warning: could not set the train matching filters")
 
     trainable_params = [
         p for mod in trainable_modules(model)
