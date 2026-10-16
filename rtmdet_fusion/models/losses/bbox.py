@@ -21,7 +21,8 @@ class HeadBboxL1Loss(nn.Module):
         """
         Args:
             loss_weight: loss weight (5.0 as in DETR)
-            img_size: image size used for the normalization
+            img_size: default image size used for the normalization (forward can override it,
+                      e.g. with the current resolution in multi-scale training)
         """
         super().__init__()
         self.loss_weight = loss_weight
@@ -31,7 +32,8 @@ class HeadBboxL1Loss(nn.Module):
         self,
         pred_bboxes: torch.Tensor,
         target_bboxes: torch.Tensor,
-        weight: Optional[torch.Tensor] = None
+        weight: Optional[torch.Tensor] = None,
+        img_size: Optional[float] = None,
     ) -> torch.Tensor:
         """Compute the L1 loss
 
@@ -39,6 +41,7 @@ class HeadBboxL1Loss(nn.Module):
             pred_bboxes: (N, 4) predicted bbox [x1, y1, x2, y2] (pixels)
             target_bboxes: (N, 4) GT bbox [x1, y1, x2, y2] (pixels)
             weight: (N,) optional weights
+            img_size: resolution the bboxes are in (default: the constructor's img_size)
 
         Returns:
             loss: scalar
@@ -48,8 +51,9 @@ class HeadBboxL1Loss(nn.Module):
             return torch.tensor(0.0, device=pred_bboxes.device, requires_grad=True)
 
         # Normalize by the image size (to roughly 0-1)
-        pred_norm = pred_bboxes / self.img_size
-        target_norm = target_bboxes / self.img_size
+        img_size = self.img_size if img_size is None else img_size
+        pred_norm = pred_bboxes / img_size
+        target_norm = target_bboxes / img_size
 
         # L1 loss (absolute error per coordinate)
         l1_loss = torch.abs(pred_norm - target_norm)  # (N, 4)

@@ -71,7 +71,7 @@ uv run python tools/train.py --amp --resume best --mask-weight 4.0 --epochs 50
 | 損失 | 重み | 内容 |
 |---|---|---|
 | 参照bbox GIoU（`HeadBboxIoULoss`） | 2.0 | 頭部・全身の参照bbox |
-| 参照bbox L1（`HeadBboxL1Loss`） | 12.0 | `--img-size`で正規化したL1 |
+| 参照bbox L1（`HeadBboxL1Loss`） | 12.0 | その時の入力解像度で正規化したL1（マルチスケールでも重みは変わりません） |
 | SimCC（`SimCCLoss`） | 1.0（β = 10） | x / y / z各軸のビン分布とガウシアンターゲット（σ = 0.03）のKLダイバージェンス |
 | 骨長（`BoneLoss`） | 10.0 | 骨の長さ（頭部13本・全身34本） |
 | 骨方向（`BoneDirectionLoss`） | 5.0 | 骨の向き（コサイン類似度）。点群全体の平行なずれを抑えます |

@@ -1074,7 +1074,8 @@ def train_one_epoch_dual(
                         )
                         if ctx.head_bbox_l1_loss_fn is not None:
                             head_bbox_l1_loss = ctx.head_bbox_l1_loss_fn(
-                                pred_head_bboxes[hsel], cat_gt_head_bboxes[hsel]
+                                pred_head_bboxes[hsel], cat_gt_head_bboxes[hsel],
+                                img_size=current_img_size,
                             )
                             head_bbox_loss = head_bbox_loss + head_bbox_l1_loss
 
@@ -1234,7 +1235,9 @@ def train_one_epoch_dual(
 
                         body_bbox_loss = ctx.body_bbox_loss_fn(pb, gb)
                         if ctx.body_bbox_l1_loss_fn is not None:
-                            body_bbox_loss = body_bbox_loss + ctx.body_bbox_l1_loss_fn(pb, gb)
+                            body_bbox_loss = body_bbox_loss + ctx.body_bbox_l1_loss_fn(
+                                pb, gb, img_size=current_img_size
+                            )
 
                         # Scheduled sampling (same schedule as the head)
                         use_gt_body = torch.rand(n_body, device=device) < gt_prob
@@ -1690,7 +1693,8 @@ def validate_dual(
                     )
                     if ctx.head_bbox_l1_loss_fn is not None:
                         head_bbox_l1_loss = ctx.head_bbox_l1_loss_fn(
-                            pred_head_bboxes[hsel], matched_gt_head_bboxes[hsel]
+                            pred_head_bboxes[hsel], matched_gt_head_bboxes[hsel],
+                            img_size=img_size,
                         )
                         head_bbox_loss = head_bbox_loss + head_bbox_l1_loss
 
@@ -1784,7 +1788,9 @@ def validate_dual(
 
                     body_bbox_loss = ctx.body_bbox_loss_fn(pb, gb)
                     if ctx.body_bbox_l1_loss_fn is not None:
-                        body_bbox_loss = body_bbox_loss + ctx.body_bbox_l1_loss_fn(pb, gb)
+                        body_bbox_loss = body_bbox_loss + ctx.body_bbox_l1_loss_fn(
+                            pb, gb, img_size=img_size
+                        )
 
                     pred_body_expanded = model.body_kpt_head.expand_bbox(pb)
                     body_gt_kpts_sel, body_recompute_valid = recompute_keypoints_relative(
