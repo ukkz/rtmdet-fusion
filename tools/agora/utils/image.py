@@ -29,6 +29,17 @@ except ImportError:
 # GPU image processor
 # ============================================================
 
+def _index_center(cx: float, cy: float) -> tuple[float, float]:
+    """Rotation centre (cx, cy) in pixel-index coordinates
+
+    Keypoints and teacher renders use continuous coordinates (pixel i covers [i, i + 1)),
+    while OpenCV and grid_sample(align_corners=True) address pixel centres by index. The same
+    rotation is therefore about (cx - 0.5, cy - 0.5) in index coordinates; rotating about
+    (cx, cy) there misaligns rotated crops and masks by up to ~0.7 px.
+    """
+    return cx - 0.5, cy - 0.5
+
+
 class GPUImageProcessor:
     """
     Image processing on the GPU.
@@ -84,22 +95,24 @@ class GPUImageProcessor:
             v = torch.arange(height, device=self.device, dtype=torch.float32)
             grid_v, grid_u = torch.meshgrid(v, u, indexing='ij')  # (height, width)
 
-            # Offset from the crop centre.
+            # Offset from the rotation centre in pixel-index coordinates.
             # CPU version: sx = cx - width/2, cropped = rotated[sy:ey, sx:ex],
-            # i.e. output (u, v) is rotated-image pixel (sx+u, sy+v)
-            dx = grid_u - (width / 2)   # (height, width)
-            dy = grid_v - (height / 2)  # (height, width)
+            # i.e. output (u, v) is rotated-image pixel (sx+u, sy+v), and the rotation centre
+            # is _index_center(cx, cy) = (cx - 0.5, cy - 0.5)
+            dx = grid_u + 0.5 - (width / 2)   # (height, width)
+            dy = grid_v + 0.5 - (height / 2)  # (height, width)
 
-            # Map back to source coordinates with the inverse rotation.
-            # The inverse of cv2.getRotationMatrix2D((cx, cy), angle, 1.0) is a
-            # rotation by -angle around (cx, cy):
-            # src_x = cx + cos(a)*dx - sin(a)*dy
-            # src_y = cy + sin(a)*dx + cos(a)*dy
+            # Map back to source pixel indices with the inverse rotation.
+            # The inverse of cv2.getRotationMatrix2D((icx, icy), angle, 1.0) is a
+            # rotation by -angle around (icx, icy):
+            # src_x = icx + cos(a)*dx - sin(a)*dy
+            # src_y = icy + sin(a)*dx + cos(a)*dy
+            icx, icy = _index_center(cx, cy)
             angle_rad = angle_deg * np.pi / 180
             cos_a = np.cos(angle_rad)
             sin_a = np.sin(angle_rad)
-            src_x = cx + cos_a * dx - sin_a * dy
-            src_y = cy + sin_a * dx + cos_a * dy
+            src_x = icx + cos_a * dx - sin_a * dy
+            src_y = icy + sin_a * dx + cos_a * dy
 
             # Normalize to [-1, 1] for grid_sample
             # align_corners=True: pixel 0 -> -1, pixel (size-1) -> +1
@@ -196,7 +209,7 @@ def crop_rotated_image_from_array(
     """
 
     # Rotation matrix around the crop centre
-    rotation_matrix = cv2.getRotationMatrix2D((cx, cy), angle_deg, 1.0)
+    rotation_matrix = cv2.getRotationMatrix2D(_index_center(cx, cy), angle_deg, 1.0)
 
     # The rotated image keeps the source size (before cropping)
     img_h, img_w = img.shape[:2]
@@ -391,9 +404,10 @@ def _rotate_mask_gpu(
     Rotate a mask on the GPU.
 
     Same result as the CPU version:
-    cv2.getRotationMatrix2D((cx, cy), angle_deg, 1.0) + cv2.warpAffine
+    cv2.getRotationMatrix2D(_index_center(cx, cy), angle_deg, 1.0) + cv2.warpAffine
     """
     img_h, img_w = mask_2d.shape
+    cx, cy = _index_center(cx, cy)  # rotation in pixel-index coordinates
 
     # To tensor (float32)
     mask_tensor = torch.from_numpy(mask_2d.astype(np.float32)).unsqueeze(0).unsqueeze(0).cuda()
@@ -466,10 +480,10 @@ def compute_rotated_cropped_bbox_from_array(
             rotated_mask = _rotate_mask_gpu(mask_2d, cx, cy, angle_deg)
         except Exception:
             # Fallback: CPU
-            rotation_matrix = cv2.getRotationMatrix2D((cx, cy), angle_deg, 1.0)
+            rotation_matrix = cv2.getRotationMatrix2D(_index_center(cx, cy), angle_deg, 1.0)
             rotated_mask = cv2.warpAffine(mask_2d, rotation_matrix, (img_w, img_h))
     elif angle_deg != 0:
-        rotation_matrix = cv2.getRotationMatrix2D((cx, cy), angle_deg, 1.0)
+        rotation_matrix = cv2.getRotationMatrix2D(_index_center(cx, cy), angle_deg, 1.0)
         rotated_mask = cv2.warpAffine(mask_2d, rotation_matrix, (img_w, img_h))
     else:
         rotated_mask = mask_2d
@@ -523,10 +537,10 @@ def compute_rotated_cropped_mask_rle_from_array(
         try:
             rotated_mask = _rotate_mask_gpu(mask_2d, cx, cy, angle_deg)
         except Exception:
-            rotation_matrix = cv2.getRotationMatrix2D((cx, cy), angle_deg, 1.0)
+            rotation_matrix = cv2.getRotationMatrix2D(_index_center(cx, cy), angle_deg, 1.0)
             rotated_mask = cv2.warpAffine(mask_2d, rotation_matrix, (img_w, img_h))
     elif angle_deg != 0:
-        rotation_matrix = cv2.getRotationMatrix2D((cx, cy), angle_deg, 1.0)
+        rotation_matrix = cv2.getRotationMatrix2D(_index_center(cx, cy), angle_deg, 1.0)
         rotated_mask = cv2.warpAffine(mask_2d, rotation_matrix, (img_w, img_h))
     else:
         rotated_mask = mask_2d

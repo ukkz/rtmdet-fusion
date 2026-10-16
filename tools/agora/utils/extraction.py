@@ -6,6 +6,7 @@ Shared logic for a single crop attempt, used by both extracter.py and test.py
 so that the interactive preview matches the generated dataset.
 """
 
+import math
 import random
 import re
 import sys
@@ -332,9 +333,16 @@ def try_single_crop(
 
     cx_min, cx_max, cy_min, cy_max = valid_range
 
-    # Random crop centre within the valid range
-    cx = random.uniform(cx_min, cx_max)
-    cy = random.uniform(cy_min, cy_max)
+    # Random crop centre within the valid range, chosen so that the crop origin
+    # (cx - W/2, cy - H/2) is an integer pixel: the CPU crop and the segmentation RLE cut at
+    # integer offsets while the keypoints, the GPU crop and the teacher renders use the exact
+    # centre, so a fractional origin misaligned them by up to 1 px
+    ox_min, ox_max = math.ceil(cx_min - crop_width / 2), math.floor(cx_max - crop_width / 2)
+    oy_min, oy_max = math.ceil(cy_min - crop_height / 2), math.floor(cy_max - crop_height / 2)
+    if ox_max < ox_min or oy_max < oy_min:
+        return CropResult(success=False, skip_reason="position_not_found")
+    cx = random.randint(ox_min, ox_max) + crop_width / 2
+    cy = random.randint(oy_min, oy_max) + crop_height / 2
 
     # Crop (GPU or CPU)
     if gpu_processor is not None:
